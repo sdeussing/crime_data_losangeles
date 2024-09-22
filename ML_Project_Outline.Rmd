@@ -10,16 +10,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Motivation
-What is the problem you are considering and why is this an interesting problem? Has this problem been attempted before?
+#### What is the problem you are considering and why is this an interesting problem? Has this problem been attempted before?
 
 Our group is working with Los Angeles crime data from 2021-2024. The dataset is divided into region and lists the date, time, and type of crime. This is an interesting problem because of its practical implications - after identification of areas with high crime, the Los Angeles police department can place more officers at such locations (and at certain identified times).
 
 This problem has been attempted by other people on Kaggle. One such analysis looked at the crime rate per year and the time of day where the most crime occurs. This analysis also found the most likely victim of crime. Another analysis on Kaggle visualized the amount of crime by victim, area, and time of day. There were several other analyses on Kaggle performing the same operations as these two.
 
-Our analysis will be unique in that we are going to introduce several derived variables (explained in the Data Overview section below). We will also be using machine learning models to predict the type an time of crime, rather than producing mostly descriptive outputs.
+Our analysis will be unique in that we are going to introduce several derived variables (explained in the Data Overview section below). We will also be using machine learning models to predict the type and time of crime, rather than producing mostly descriptive outputs.
 
 ## Problem Framing
-What is the proposed solution to the problem?
+#### What is the proposed solution to the problem?
 
 Our proposed solution can be divided into 2 parts.
 
@@ -30,43 +30,55 @@ Part 2:
 Of the areas identified as "high-crime" in Part 1, we will then predict the next time and type of crime to occur.
 
 ## Data overview
-What is the dataset you are going to use to solve this problem? Describe the dataset and its characteristics.
+#### What is the dataset you are going to use to solve this problem? Describe the dataset and its characteristics.
 
 The dataset contains columns that give the date, time, and location (area code, area name, and exact location) of the reported crime. There are also columns for the use of weapons (yes/no), the crime code, and the longitude/latitude coordinates. 
 
 Derived columns for this dataset will include:
-1. The percent of crimes (for an area) that include weapons
-2. The percent of crimes (for an area) that end in arrest
-3. Ranking types of crime by severity
+1. Severity index that evaluates crime codes and assigns each crime a ranking of how severe the offense was
+
   - This information will be useful in deciding if an area is "high-crime." For example, if two areas have similar crime rates/totals, the crime severity will differentiate these two areas. 
-  - Deciding severity is a challenge for this dataset. Our group will research the crime codes for Los Angeles, but we will have to make a subjective decision about severity (on a scale) based on the crime. This decisions eliminates some of the project's reproducability, as other analyses may have different rankings of crime severity.
+  - Deciding severity is a challenge for this dataset. Our group will research the crime codes for Los Angeles, but we will have to make a subjective decision about severity (on a scale) based on the crime. This decision eliminates some of the project's reproducability, as other analyses may have different rankings of crime severity.
+  
+  
+2. Vulnerability index that evaluates age and gender of the victim and assigns a number to decide how vulnerable they would be
+  a. This is be calculated by 3 points for female and + 1 point for every year < 18 or > 60
+  This also eliminates some of our project's reproducability as it is subjective how much being female or "old" affects your vulnerability.
+  
+  
+3. An indicator variable to describe armed (1) or not (0)
+
+
+4 An indicator variable to describe Adult Arrest or Juv Arrest (1) or not (0)
+
+
 
 The dataset can be accessed at:
 https://catalog.data.gov/dataset/crime-data-from-2020-to-present
 
 ## Contribution
-Which team members contributed to each area of the project.
+#### Which team members contributed to each area of the project.
 
 Imogen Meers & Sarah Deussing
 
 ## Bibliography
-Citations for the references used.
+#### Citations for the references used.
 
 ## R-Code
-R-script with code used for initial data analysis.
+#### R-script with code used for initial data analysis.
 
 - Data overview, summary statistics, appropriate data visualization.
 
-Read in Data
-```{r}
+
+```{r Read in Data}
 library(readr)
 crime <- read_csv("Crime_Data_from_2020_to_Present.csv")
 head(crime)
 summary(crime)
 ```
 
-Clean Column Names: Eliminate Spaces
-```{r}
+
+```{r Clean Column Names: Eliminate Spaces}
 #colnames(crime)
 new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area",
                   "Area_Name","District_Num", "Part_1_2", "Crime_Code", "Crime_Code_Desc",
@@ -76,18 +88,55 @@ new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area"
                   "LAT", "LON")
 colnames(crime) <- new_colnames
 colnames(crime)
+unique(crime$Weapon_Used_Code)
 ```
 
-Number of Crimes by Area Code
-```{r}
+
+```{r Number of Crimes by Area Code}
 library(ggplot2)
-ggplot(crime, aes(x=Area)) + geom_bar() +
+by_area <- ggplot(crime, aes(x=Area)) + geom_bar() +
   labs(title = "Number of Crimes by Area Code",
        x = "Area Code",
        y = "Number of Crimes") +
   theme_minimal()
+by_area
+```
+The areas with the most crime in the dataset are: 1, 3, 12, and 14.
+
+
+```{r Number of Crimes by Victim Age and Sex}
+filtered <-  crime[crime$Vict_Age > 0 & ((crime$Vict_Sex == 'F' | crime$Vict_Sex == 'M') & !is.na(crime$Vict_Sex)),]
+
+by_age <- ggplot(filtered, aes(x=Vict_Age)) + 
+  geom_histogram(fill = "grey", color = "black") +
+  geom_histogram(data = filtered[filtered$Vict_Age > 0 & filtered$Vict_Age < 18 | filtered$Vict_Age >= 60,], fill = "red", color = 'black', ) + 
+  labs(title = "Vulnerability- Number of Crimes by Victim Age and Sex",
+       x = "Victim Age",
+       y = "Number of Crimes") +
+  theme_minimal() +
+  annotate("text", x = 80, y = 30000, label = "Vunerable Population\n Age < 18 or Age > 60", color = "red", size = 3) +
+  facet_wrap(~Vict_Sex)
+by_age
+```
+The distribution of victim ages is relatively normal and similar between male and female with the most crimes being committed against males and females aged 25 to 50. From the area of each histogram you can see there is anroughly equal number of crimes committed against males and females. 
+```{r Severity of Crimes by Area}
+library(dplyr)
+indicators <- crime
+indicators$Arrest <- ifelse(indicators$Status == 'JA' | indicators$Status == 'AA', 1, 0)
+indicators$Armed <- ifelse(!is.na(indicators$Weapon_Used_Code), 1, 0)
+indicators
+
+
+summary_by_area <- indicators %>%
+  group_by(Area) %>%
+  summarise(
+    Percent_Arrests = (sum(Arrest) / n()) * 100,
+    Percent_Armed = (sum(Armed) / n()) * 100
+  )
+summary_by_area
+
 ```
 
-The areas with the most crime in the dataset are: 1, 3, 12, and 14.
+
 
 
