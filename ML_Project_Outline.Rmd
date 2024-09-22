@@ -1,0 +1,93 @@
+---
+title: "ML_Project_Intro"
+author: "Sarah Deussing & Imogen Meers"
+date: "2024-09-20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Motivation
+What is the problem you are considering and why is this an interesting problem? Has this problem been attempted before?
+
+Our group is working with Los Angeles crime data from 2021-2024. The dataset is divided into region and lists the date, time, and type of crime. This is an interesting problem because of its practical implications - after identification of areas with high crime, the Los Angeles police department can place more officers at such locations (and at certain identified times).
+
+This problem has been attempted by other people on Kaggle. One such analysis looked at the crime rate per year and the time of day where the most crime occurs. This analysis also found the most likely victim of crime. Another analysis on Kaggle visualized the amount of crime by victim, area, and time of day. There were several other analyses on Kaggle performing the same operations as these two.
+
+Our analysis will be unique in that we are going to introduce several derived variables (explained in the Data Overview section below). We will also be using machine learning models to predict the type an time of crime, rather than producing mostly descriptive outputs.
+
+## Problem Framing
+What is the proposed solution to the problem?
+
+Our proposed solution can be divided into 2 parts.
+
+Part 1:
+Our plan is to identify regions of Los Angeles and times of the day that are "high crime." We will do so via clustering methods, and we will account for the severity of the crime in our analysis.
+
+Part 2:
+Of the areas identified as "high-crime" in Part 1, we will then predict the next time and type of crime to occur.
+
+## Data overview
+What is the dataset you are going to use to solve this problem? Describe the dataset and its characteristics.
+
+The dataset contains columns that give the date, time, and location (area code, area name, and exact location) of the reported crime. There are also columns for the use of weapons (yes/no), the crime code, and the longitude/latitude coordinates. 
+
+Derived columns for this dataset will include:
+1. The percent of crimes (for an area) that include weapons
+2. The percent of crimes (for an area) that end in arrest
+3. Ranking types of crime by severity
+  - This information will be useful in deciding if an area is "high-crime." For example, if two areas have similar crime rates/totals, the crime severity will differentiate these two areas. 
+  - Deciding severity is a challenge for this dataset. Our group will research the crime codes for Los Angeles, but we will have to make a subjective decision about severity (on a scale) based on the crime. This decisions eliminates some of the project's reproducability, as other analyses may have different rankings of crime severity.
+
+The dataset can be accessed at:
+https://catalog.data.gov/dataset/crime-data-from-2020-to-present
+
+## Contribution
+Which team members contributed to each area of the project.
+
+Imogen Meers & Sarah Deussing
+
+## Bibliography
+Citations for the references used.
+
+## R-Code
+R-script with code used for initial data analysis.
+
+- Data overview, summary statistics, appropriate data visualization.
+
+Read in Data
+```{r}
+library(readr)
+crime <- read_csv("Crime_Data_from_2020_to_Present.csv")
+head(crime)
+summary(crime)
+```
+
+Clean Column Names: Eliminate Spaces
+```{r}
+#colnames(crime)
+new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area",
+                  "Area_Name","District_Num", "Part_1_2", "Crime_Code", "Crime_Code_Desc",
+                  "Mocode", "Vict_Age", "Vict_Sex", "Vict_Descent", "Premis_Code",
+                  "Premis_Desc", "Weapon_Used_Code", "Weapon_Desc", "Status", "Status_Desc",
+                  "Crm_Cd1", "Crm_Cd2", "Crm_Cd3", "Crm_Cd4", "Location", "Cross_Street",
+                  "LAT", "LON")
+colnames(crime) <- new_colnames
+colnames(crime)
+```
+
+Number of Crimes by Area Code
+```{r}
+library(ggplot2)
+ggplot(crime, aes(x=Area)) + geom_bar() +
+  labs(title = "Number of Crimes by Area Code",
+       x = "Area Code",
+       y = "Number of Crimes") +
+  theme_minimal()
+```
+
+The areas with the most crime in the dataset are: 1, 3, 12, and 14.
+
+
