@@ -2,7 +2,9 @@
 title: "ML_Project_Intro"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Motivation
 #### What is the problem you are considering and why is this an interesting problem? Has this problem been attempted before?
-#####
+
 Our group is working with Los Angeles crime data from 2021-2024. The dataset is divided into region and lists the date, time, and type of crime. This is an interesting problem because of its practical implications - after identification of areas with high crime, the Los Angeles police department can place more officers at such locations (and at certain identified times).
 
 This problem has been attempted by other people on Kaggle. One such analysis looked at the crime rate per year and the time of day where the most crime occurs. This analysis also found the most likely victim of crime. Another analysis on Kaggle visualized the amount of crime by victim, area, and time of day. There were several other analyses on Kaggle performing the same operations as these two.
@@ -20,7 +22,7 @@ Our analysis will be unique in that we are going to introduce several derived va
 
 ## Problem Framing
 #### What is the proposed solution to the problem?
-#####
+
 Our proposed solution can be divided into 2 parts.
 
 Part 1:
@@ -31,7 +33,7 @@ Of the areas identified as "high-crime" in Part 1, we will then predict the next
 
 ## Data overview
 #### What is the dataset you are going to use to solve this problem? Describe the dataset and its characteristics.
-#####
+
 The dataset contains columns that give the date, time, and location (area code, area name, and exact location) of the reported crime. There are also columns for the use of weapons (yes/no), the crime code, and the longitude/latitude coordinates. 
 
 Derived columns for this dataset will include:
@@ -52,25 +54,29 @@ Derived columns for this dataset will include:
 4 An indicator variable to describe Adult Arrest or Juv Arrest (1) or not (0)
 
 
-
 The dataset can be accessed at:
 https://catalog.data.gov/dataset/crime-data-from-2020-to-present
 
 ## Contribution
 #### Which team members contributed to each area of the project.
-#####
+
 Imogen Meers & Sarah Deussing
 
 Both have contributed to data cleaning, initial analyses, and project description.
 
 ## Bibliography
 #### Citations for the references used.
-#####
+
 “City of Los Angeles - Crime Data from 2020 to Present.” Data.Gov, data.lacity.org, 20 Sept. 2024, catalog.data.gov/dataset/crime-data-from-2020-to-present. 
+
+California Department of Justice. (2024). Law Enforcement Code Tables. Retrieved from https://oag.ca.gov/law/code-tables
 
 ## R-Code
 #### R-script with code used for initial data analysis.
-#####
+
+
+- Data overview, summary statistics, appropriate data visualization.
+
 
 ```{r Read in Data}
 library(readr)
@@ -106,7 +112,6 @@ by_area
 
 The areas with the most crime in the dataset are: 1, 3, 12, and 14.
 
-
 ```{r Number of Crimes by Victim Age and Sex}
 filtered <-  crime[crime$Vict_Age > 0 & ((crime$Vict_Sex == 'F' | crime$Vict_Sex == 'M') & !is.na(crime$Vict_Sex)),]
 
@@ -122,25 +127,111 @@ by_age <- ggplot(filtered, aes(x=Vict_Age)) +
 by_age
 ```
 
-The distribution of victim ages is relatively normal and similar between male and female with the most crimes being committed against males and females aged 25 to 50. From the area of each histogram you can see there is anroughly equal number of crimes committed against males and females. 
+The distribution of victim ages is relatively normal and similar between male and female with the most crimes being committed against males and females aged 25 to 50. From the area of each histogram you can see there is a roughly equal number of crimes committed against males and females. 
 
 ```{r Severity of Crimes by Area}
 library(dplyr)
+library(ggmap)
+
+
+#Dataset including indicator variables for armed and arrested
 indicators <- crime
-indicators$Arrest <- ifelse(indicators$Status == 'JA' | indicators$Status == 'AA', 1, 0)
+indicators$Arrest <- ifelse((indicators$Status == 'JA' | indicators$Status == 'AA') & !is.na(indicators$Status), 1, 0)
 indicators$Armed <- ifelse(!is.na(indicators$Weapon_Used_Code), 1, 0)
-indicators
 
 
-summary_by_area <- indicators %>%
+#Summary Table by Area
+summary_by_area <- indicators[indicators$LON != 0 & indicators$ LAT !=0,] %>%
   group_by(Area) %>%
   summarise(
+    avg_lat = mean(LAT),
+    avg_lon = mean(LON),
     Percent_Arrests = (sum(Arrest) / n()) * 100,
     Percent_Armed = (sum(Armed) / n()) * 100
   )
-summary_by_area
 
 ```
+
+```{r}
+#Plotting Crimes on LA MAP
+register_stadiamaps("9e07144d-cdab-48f9-a35d-298e1bbece2e")
+
+# Define the bounding box for Los Angeles
+bbox <- c(left = -118.6682, bottom = 33.7037, right = -118, top = 34.3373)
+
+# Get the map
+la_map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner")
+
+
+# Plot the map
+armed_map <- ggmap(la_map) +
+  geom_point(data = indicators, aes(x = LON, y = LAT, color = as.factor(Armed), alpha = 0.05)) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) +
+  scale_color_manual(
+    values = c('1' = "red", '0' = "blue"),
+    labels = c("Unarmed", "Armed")
+  ) + 
+  labs(
+    title = "Map of LA showing all Crimes by Weapon Usage",
+    color = "Weapon Usage"
+  )+
+  guides(alpha = "none")
+
+armed_map
+```
+
+This shows every crime in out data set coloured by armed or not. It is quite difficult to tell as there are so many crimes that overlap but you can see some areas where there are more concentrated crimes with weapons, such as the centre.
+
+```{r}
+arrest_map <- ggmap(la_map) +
+  geom_point(data = summary_by_area, aes(x = avg_lon, y = avg_lat, color = Percent_Arrests, size = 3))+
+  theme(
+    plot.title = element_text(size = 10),  # Adjust the size here
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) +
+  labs(
+    title = "Map of LA showing % of Crimes ending in Arrest by Area"
+  ) +
+  guides(size = "none") +
+  scale_color_gradient(low = "blue", high = "red") 
+#arrest_map
+
+
+armed_map1 <- ggmap(la_map) +
+  geom_point(data = summary_by_area, aes(x = avg_lon, y = avg_lat, color = Percent_Armed, size = 3))+
+  theme(
+    plot.title = element_text(size = 10),  # Adjust the size here
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) +
+  labs(
+    title = "Map of LA showing % of Armed Crimes by Area"
+  ) +
+  guides(size = "none") +
+  scale_color_gradient(low = "blue", high = "red") 
+#armed_map1
+
+library(gridExtra)
+grid.arrange(arrest_map, armed_map1, nrow=1)
+```
+
+From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
 
 
