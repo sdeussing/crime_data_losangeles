@@ -240,13 +240,13 @@ crime$Vulnerability <- 0
 
  createVuln <- function(row){
    x <-  0
-  if(!is.na(row['Vict_Sex'])){
+  if(!is.na(row['Vict_Sex'])){ #adding points for F
     if (row['Vict_Sex'] == "F"){
       x  <- x + 3
     }
   }
   
-  if(!is.na(row['Vict_Age'])){
+  if(!is.na(row['Vict_Age'])){ #adding points for Age
     if (as.numeric(row['Vict_Age']) < 18){
       x  <- x + 18 - as.numeric(row['Vict_Age'])
     }
@@ -262,9 +262,18 @@ crime$Vulnerability <- apply(crime, 1, createVuln)
 
 
 ```{r}
-
+library(readxl)
 new <- crime
+crime_hierarchy <- read_excel('CIBRS Offense Listing.xlsx', sheet = 2)
+crime_hierarchy <- crime_hierarchy %>% select(`BCS CODE`, HIERARCHY, `OFFENSE DESCRIPTION`) %>% rename(Crime_Code = `BCS CODE` ) %>% mutate(Crime_Code = as.numeric(Crime_Code))
 
+joined <- left_join(new, crime_hierarchy, by = 'Crime_Code')
+
+
+#Ranked our crimes in terms of hierarchy and if part 1 or 2 offense
+new <- new %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(Part_1_2, Crime_Code) %>%  mutate(Crime_Rank = row_number())
+
+new
 ```
 
 
