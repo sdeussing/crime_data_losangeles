@@ -96,8 +96,7 @@ new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area"
                   "Crm_Cd1", "Crm_Cd2", "Crm_Cd3", "Crm_Cd4", "Location", "Cross_Street",
                   "LAT", "LON")
 colnames(crime) <- new_colnames
-colnames(crime)
-unique(crime$Weapon_Used_Code)
+#colnames(crime)
 ```
 
 
@@ -235,7 +234,7 @@ grid.arrange(arrest_map, armed_map1, nrow=1)
 From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
 #### Creating derived variables for part 2
-```{r}
+```{r Create Vulnerability Metric}
 crime$Vict_Age <- ifelse(crime$Vict_Age <= 0, NA, crime$Vict_Age)
 crime$Vulnerability <- 0
 
@@ -262,35 +261,85 @@ crime$Vulnerability <- apply(crime, 1, createVuln)
 ```
 
 
-```{r}
-library(readxl)
-new <- crime
-crime_hierarchy <- read_excel('CIBRS Offense Listing.xlsx', sheet = 2)
-crime_hierarchy <- crime_hierarchy %>% select(`BCS CODE`, HIERARCHY, `OFFENSE DESCRIPTION`) %>% rename(Crime_Code = `BCS CODE` ) %>% mutate(Crime_Code = as.numeric(Crime_Code))
-
-joined <- left_join(new, crime_hierarchy, by = 'Crime_Code')
-
-
+```{r Create Severity Metric}
 #Ranked our crimes in terms of hierarchy and if part 1 or 2 offense
-new <- new %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(desc(Part_1_2), desc(Crime_Code)) %>%  mutate(Severity = row_number())
+rank_code <- crime %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(desc(Part_1_2), desc(Crime_Code)) %>%  mutate(Severity = row_number())
 
-#Joins on overall CrimeCode
-rank_code <- new %>% select(Severity, Crime_Code)
-rank_code
-left_join(crime, rank_code, by = "Crime_Code")
+#Join on overall CrimeCode --> Do this for Crime Code 1, 2, 3, 4
+rank_code <- rank_code %>% select(Severity, Crime_Code)
 
+#Crime Code 1
+crime <- left_join(crime, rank_code, by = "Crime_Code")
+crime <- crime %>%
+  rename(Severity_1 = Severity)
 
-#REMOVE CRMCODE 4 ALL NAS
-#LEFT JOIN ON CRM1, 2, 3 = SEVERITY 1,2, 3
+#Crime Code 2
+rank_code <- rank_code %>%
+  rename(Crm_Cd2 = Crime_Code)
+crime <- left_join(crime, rank_code, by = "Crm_Cd2")
+crime <- crime %>%
+  rename(Severity_2 = Severity)
+
+# Crime Code 3
+rank_code <- rank_code %>%
+  rename(Crm_Cd3 = Crm_Cd2)
+crime <- left_join(crime, rank_code, by = "Crm_Cd3")
+crime <- crime %>%
+  rename(Severity_3 = Severity)
+
+# Crime Code 4 is all NA, so remove it.
+crime <- crime %>%
+  select(-c(Crm_Cd4))
+
+# Calculate final severity
 #0.75*CRM1 +0.25*CRM2 + 0.1*CRM3 = FINAL SEVERITY
+crime$Severity_2[is.na(crime$Severity_2)] <- 0
+crime$Severity_3[is.na(crime$Severity_3)] <- 0
+crime <- crime %>%
+  mutate(Final_Severity = (0.75*Severity_1) + 
+  (0.25*Severity_2) + 
+  (0.1*Severity_3))
+```
 
-#mode premis code
-#mode crime code
-#average vuln
-#average severity
-#melt - arrests and weapons
-#lon and lat
-#GRUP BY  DIst
+```{r Weapons and arrests}
+# Arrests --> count AA (adult arrest) and JA (juvenile arrest)
+crime$Adult_Arrest <- ifelse(crime$Status == "AA", 1, 0)
+crime$Juv_Arrest <- ifelse(crime$Status == "JA", 1, 0)
+
+# Weapons --> gun (starts with 1), blade (starts with 2)
+crime$Weapon_Used_Code <- as.character(crime$Weapon_Used_Code)
+crime$Gun <- ifelse(substr(crime$Weapon_Used_Code,1,1) == "1", 1, 0)
+crime$Gun <- ifelse(is.na(crime$Gun), 0, crime$Gun)
+crime$Blade <- ifelse(substr(crime$Weapon_Used_Code,1,1) == "2", 1, 0)
+crime$Blade <- ifelse(is.na(crime$Blade), 0, crime$Blade)
+```
+
+
+```{r Create Final Dataframe}
+crime <- crime %>%
+  select(-c(DR_NO, Date_Rptd, Part_1_2, Mocode, Location, Cross_Street, Vict_Age, Vict_Sex,
+            Crm_Cd1, Crm_Cd2, Crm_Cd3, Vict_Descent, Severity_1, Severity_2, Severity_3))
+```
+
+
+
+```{r Group by District}
+library(DescTools)
+crime$Weapon_Used_Code <- as.numeric(crime$Weapon_Used_Code)
+
+districts <- crime %>% group_by(District_Num) %>%
+  summarize(Most_Common_Premis = Mode(Premis_Code, na.rm=TRUE),
+            Most_Common_Crime = Mode(Crime_Code, na.rm=TRUE),
+            Avg_Vulnerability = mean(Vulnerability),
+            Avg_Severity = mean(Final_Severity),
+            Avg_LON = mean(LON),
+            Avg_LAT = mean(LAT),
+            Num_Adult_Arrest = sum(Adult_Arrest),
+            Num_Juv_Arrest = sum(Juv_Arrest),
+            Num_Gun = sum(Gun),
+            Num_Blade = sum(Blade),
+            Most_Common_Weapon = Mode(Weapon_Used_Code, na.rm=TRUE))
+
 ```
 
 
