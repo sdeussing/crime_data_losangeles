@@ -233,6 +233,40 @@ grid.arrange(arrest_map, armed_map1, nrow=1)
 
 From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
+#### Creating derived variables for part 2
+```{r}
+crime$Vict_Age <- ifelse(crime$Vict_Age <= 0, NA, crime$Vict_Age)
+crime$Vulnerability <- 0
+
+ createVuln <- function(row){
+   x <-  0
+  if(!is.na(row['Vict_Sex'])){
+    if (row['Vict_Sex'] == "F"){
+      x  <- x + 3
+    }
+  }
+  
+  if(!is.na(row['Vict_Age'])){
+    if (as.numeric(row['Vict_Age']) < 18){
+      x  <- x + 18 - as.numeric(row['Vict_Age'])
+    }
+    
+    else if (as.numeric(row['Vict_Age']) > 60){
+      x <- x + as.numeric(row['Vict_Age']) - 60
+    }
+  }
+   return(x)
+}
+crime$Vulnerability <- apply(crime, 1, createVuln)
+```
+
+
+```{r}
+
+new <- crime
+
+```
+
 
 
 
