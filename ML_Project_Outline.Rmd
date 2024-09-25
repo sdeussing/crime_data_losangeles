@@ -141,11 +141,7 @@ new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area"
                   "Crm_Cd1", "Crm_Cd2", "Crm_Cd3", "Crm_Cd4", "Location", "Cross_Street",
                   "LAT", "LON")
 colnames(crime) <- new_colnames
-<<<<<<< Updated upstream
-#colnames(crime)
-=======
-colnames(crime)
->>>>>>> Stashed changes
+
 ```
 
 
