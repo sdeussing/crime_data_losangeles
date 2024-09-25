@@ -274,10 +274,23 @@ joined <- left_join(new, crime_hierarchy, by = 'Crime_Code')
 #Ranked our crimes in terms of hierarchy and if part 1 or 2 offense
 new <- new %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(desc(Part_1_2), desc(Crime_Code)) %>%  mutate(Severity = row_number())
 
-new
+#Joins on overall CrimeCode
 rank_code <- new %>% select(Severity, Crime_Code)
 rank_code
 left_join(crime, rank_code, by = "Crime_Code")
+
+
+#REMOVE CRMCODE 4 ALL NAS
+#LEFT JOIN ON CRM1, 2, 3 = SEVERITY 1,2, 3
+#0.75*CRM1 +0.25*CRM2 + 0.1*CRM3 = FINAL SEVERITY
+
+#mode premis code
+#mode crime code
+#average vuln
+#average severity
+#melt - arrests and weapons
+#lon and lat
+#GRUP BY  DIst
 ```
 
 
