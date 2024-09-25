@@ -3,6 +3,7 @@ title: "ML_Project_Intro"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -271,9 +272,12 @@ joined <- left_join(new, crime_hierarchy, by = 'Crime_Code')
 
 
 #Ranked our crimes in terms of hierarchy and if part 1 or 2 offense
-new <- new %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(Part_1_2, Crime_Code) %>%  mutate(Crime_Rank = row_number())
+new <- new %>% select(Crime_Code_Desc, Crime_Code, Part_1_2)%>% distinct(Crime_Code_Desc,Crime_Code, Part_1_2) %>%  arrange(desc(Part_1_2), desc(Crime_Code)) %>%  mutate(Severity = row_number())
 
 new
+rank_code <- new %>% select(Severity, Crime_Code)
+rank_code
+left_join(crime, rank_code, by = "Crime_Code")
 ```
 
 
