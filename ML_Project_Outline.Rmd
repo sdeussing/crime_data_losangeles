@@ -3,9 +3,9 @@ title: "ML_Project_Intro"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -27,7 +27,7 @@ Our analysis will be unique in that we are going to introduce several derived va
 Our proposed solution can be divided into 2 parts.
 
 Part 1:
-Our plan is to identify regions of Los Angeles and times of the day that are "high crime." We will do so via clustering methods, and we will account for the severity of the crime in our analysis.
+Our plan is to identify districts of Los Angeles and times of the day that are "high crime." We will do so via clustering methods, and we will account for the severity of the crime and vulnerability of victim in our analysis.
 
 Part 2:
 Of the areas identified as "high-crime" in Part 1, we will then predict the next time and type of crime to occur.
@@ -37,22 +37,67 @@ Of the areas identified as "high-crime" in Part 1, we will then predict the next
 
 The dataset contains columns that give the date, time, and location (area code, area name, and exact location) of the reported crime. There are also columns for the use of weapons (yes/no), the crime code, and the longitude/latitude coordinates. 
 
-Derived columns for this dataset will include:
-1. Severity index that evaluates crime codes and assigns each crime a ranking of how severe the offense was
+
+
+
+We will create the following __row-wise derived variables__:
+
+1. __Severity__ index that evaluates crime codes and assigns each crime a ranking of how severe the offense was
 
   - This information will be useful in deciding if an area is "high-crime." For example, if two areas have similar crime rates/totals, the crime severity will differentiate these two areas. 
-  - Deciding severity is a challenge for this dataset. Our group will research the crime codes for Los Angeles, but we will have to make a subjective decision about severity (on a scale) based on the crime. This decision eliminates some of the project's reproducability, as other analyses may have different rankings of crime severity.
+  
+  - By having a final, combined severity it also allows us to evaluate whether two minor crimes are worse than one major crime.
+  
+  - Upon research, we found the Uniform Crime Reporting User Manual, which gave a break down of how offenses should be classified. It described that a lower crime code indicated a more violent crime and that each crime is either part 1, a crime against person or property, or a less severe part 2 crime, which is any other crime. Using this information, we ordered each crime firstly by part, then by crime code and gave a severity index from 140 (most severe) to 1 to (least severe).
+  
+  a. Severity for Crime Code 1
+  
+  b. Severity for Crime Code 2
+  
+  c. Severity for Crime Code 3
+  
+  d. Final Severity, which is a weighted severity that takes into account each crime code. Crime code 1 is the primary offense so is 75% of final, crime code 2 is the secondary offesnse so is 25% of final and crime code 3 is the tertiary offense so is 10% of final
   
   
-2. Vulnerability index that evaluates age and gender of the victim and assigns a number to decide how vulnerable they would be
-  a. This is be calculated by 3 points for female and + 1 point for every year < 18 or > 60
-  This also eliminates some of our project's reproducability as it is subjective how much being female or "old" affects your vulnerability.
+2. __Vulnerability__ index that evaluates age and gender of the victim and assigns a number to decide how vulnerable they would be
+  - This is be calculated by 3 points for female and + 1 point for every year < 18 or > 60
+  This eliminates some of our project's reproducability as it is subjective how much being female or "old" affects your vulnerability.
   
-  
-3. An indicator variable to describe armed (1) or not (0)
+   
+3. An indicator variable to describe gun (1) or not (0)
+
+4. An indicator variable to describe blade (1) or not (0)
+
+5. An indicator variable to describe Adult Arrest (1) or not
+
+6. An indicator variable to describe Juv Arrest (1) or not (0)
 
 
-4 An indicator variable to describe Adult Arrest or Juv Arrest (1) or not (0)
+
+
+
+
+From our row-wise derived variables, we will create __district-wise derived variables__ for use in clustering:
+
+1. Mean Severity
+
+2. Mean Vulnerability
+
+3. Number of Gun Crimes
+
+4. Number of Blade Crimes
+
+5. Number of Adult Arrests
+
+6. Number of Juvenile Arrests
+
+7. Most common weapon type
+
+8. Most common premises at which the crime occured (e.g. does District X have lots of crimes in family homes?)
+
+9. Mean latitude
+
+10. Mean longitude
 
 
 The dataset can be accessed at:
@@ -96,7 +141,11 @@ new_colnames <- c("DR_NO", "Date_Rptd", "Date_Occurred", "Time_Occurred", "Area"
                   "Crm_Cd1", "Crm_Cd2", "Crm_Cd3", "Crm_Cd4", "Location", "Cross_Street",
                   "LAT", "LON")
 colnames(crime) <- new_colnames
+<<<<<<< Updated upstream
 #colnames(crime)
+=======
+colnames(crime)
+>>>>>>> Stashed changes
 ```
 
 
@@ -341,6 +390,7 @@ districts <- crime %>% group_by(District_Num) %>%
             Most_Common_Weapon = Mode(Weapon_Used_Code, na.rm=TRUE))
 
 ```
+
 
 
 
