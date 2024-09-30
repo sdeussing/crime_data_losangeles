@@ -3,9 +3,9 @@ title: "ML_Project_Intro"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -388,6 +388,157 @@ districts <- crime %>% group_by(District_Num) %>%
 ```
 
 
+```{r PAM K-Means CLustering}
+library(cluster)
+library(tibble)
+
+d <-  districts
+#select varaibles
+clust_data <- ungroup(d) %>% select(-c(Avg_LON, Avg_LAT, District_Num))
+
+#factor non numeric
+clust_data$Most_Common_Premis <- as.factor(clust_data$Most_Common_Premis)
+clust_data$Most_Common_Crime <- as.factor(clust_data$Most_Common_Crime)
+clust_data$Most_Common_Weapon <- as.factor(clust_data$Most_Common_Weapon)
 
 
+#scale numeric cols
+clust_data <- clust_data %>%
+    mutate(across(where(is.numeric), scale))
+
+
+clust_data <- clust_data  %>% 
+  mutate(across(where(is.matrix), as.numeric))
+
+
+gower_dist <- 
+  clust_data %>% daisy(metric = "gower")
+
+sil_width <- c(NA)
+for (i in 2:20){
+  pam_fit <- pam(gower_dist, diss =TRUE, k = i)
+  sil_width[i] <- pam_fit$silinfo$avg.width
+}
+
+
+sil_width %>% 
+  as_tibble() %>% 
+   rowid_to_column() %>% 
+   filter(rowid %in% c(2:20)) %>% 
+   ggplot(aes(rowid, value)) +
+   geom_line(colour  = 'black', size = 0.7) +
+   geom_point(colour = 'black', size = 1.3) +
+   theme_minimal() +
+   labs(title = 'Silhouette Widths of k-medoid Clusters',
+        x     = "Number of clusters",
+        y     = 'Silhouette Width') +
+   theme(plot.title = element_text(hjust = 0.5))
+
+sil_width %>% 
+  as_tibble() %>% 
+   rowid_to_column()
+```
+Looking at this graph, both 7 and 13 are local maximums so we will look at the clustering for both of these.
+
+```{r}
+library(Rtsne)
+
+pam_fit7 <- pam(gower_dist, diss =TRUE, k = 7)
+pam_fit13 <- pam(gower_dist, diss =TRUE, k = 13)
+
+
+
+tsne_obj7 <- Rtsne(gower_dist, is_distance = TRUE)
+tsne_obj7$Y %>%
+  data.frame() %>%
+  setNames(c("X", "Y")) %>%
+  mutate(cluster = factor(pam_fit7$clustering)) %>% 
+  # plot
+  ggplot(aes(x = X, y = Y, colour = cluster)) +
+  geom_point()  +
+  theme_light() +
+  labs(title     = 't-SNE 2D Projections of 7-medoid Clusters')  +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+tsne_obj13 <- Rtsne(gower_dist, is_distance = TRUE)
+tsne_obj13$Y %>%
+  data.frame() %>%
+  setNames(c("X", "Y")) %>%
+  mutate(cluster = factor(pam_fit13$clustering)) %>% 
+  # plot
+  ggplot(aes(x = X, y = Y, colour = cluster)) +
+  geom_point()  +
+  theme_light() +
+  labs(title     = 't-SNE 2D Projections of 13-medoid Clusters')  +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+# Extract clusters
+clusters_13 <- pam_fit13$cluster
+# Extract centers
+#centers_13 <- pam_fit13$medoids
+temp <- cbind.data.frame(clust_data, clusters_13)
+centers <- temp %>% 
+  group_by(clusters_13) %>%
+  summarise()
+
+res_mat <- as.data.frame(matrix(NA, nrow = length(unique(clusters_13)), ncol = 6))
+
+for(i in 1:nrow(res_mat)){
+  res_mat[i,] <- colMeans(clust_data[which(clusters_13 == i), c(3:8) ], na.rm  =TRUE)
+}
+
+names(res_mat) <- names(clust_data)[c(3:8)]
+# Create cluster vector
+cluster <- c(1:13)
+# Join cluster vector and centers
+center_df <- data.frame(cluster, res_mat)
+
+# Reshape the data
+center_reshape <- gather(center_df, features, values, Avg_Vulnerability:Num_Blade)
+# View result
+head(center_reshape)
+
+# Create plot
+g_heat_2 <- ggplot(data = center_reshape, # Set dataset
+                   aes(x = features, y = cluster, fill = values)) + # Set aesthetics
+  scale_y_continuous(breaks = seq(1, 13, by = 1)) + # Set y axis breaks
+  geom_tile() + # Set geom tile for heatmap
+  coord_equal() +  # Set coord equal 
+  theme_bw() + # Set theme
+  scale_fill_gradient2(low = "blue", # Choose low color
+                       mid = "white", # Choose mid color
+                       high = "red", # Choose high color
+                       midpoint =0, # Choose mid point
+                       space = "Lab", 
+                       na.value ="grey", # Choose NA value
+                       guide = "colourbar", # Set color bar
+                       aesthetics = "fill") + # Select aesthetics to apply
+  coord_flip() # Rotate plot
+# Generate plot
+g_heat_2
+```
+Group 10- lots of guns/blade/arrests
+Group 11- high vulnerability and severity, low g/b/a
+Group 4- high vulnerability
+Group 1- safest
+
+```{r}
+d_details <- d %>% select(District_Num, Avg_LON, Avg_LAT)
+length(clusters_13)
+named_clust <- cbind(d_details, clusters_13) %>% rename( "Cluster_Num" = `...4`)
+
+categoric_added <- cbind(named_clust, d[,c(2, 3, 12)])  
+  categoric_added <- categoric_added[categoric_added$Cluster_Num %in% c(1, 4, 10, 11),]
+
+sum <- categoric_added %>% group_by(Cluster_Num) 
+%>% mutate(modePrem = Mode(Most_Common_Premis))
+  
+  
+  
+```
 
