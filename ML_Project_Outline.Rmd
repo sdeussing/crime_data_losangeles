@@ -652,7 +652,50 @@ pred_and_test <- cbind.data.frame(predictions, test_label)
 confusionMatrix(factor(predictions), factor(test_label))
 ```
 
-not very good - maybe group by time of day (morning/afternoon/night) and run another model.
+This model is too granular to make good predictions. Instead, let's predict time of day in 6 four-hour periods.
+  - 0-3:59 (late night = 0)
+  - 4-7:59 (early morning = 1), 
+  - 8-11:59 (morning = 2),
+  - 12-3:59 (afternoon = 3), 
+  - 4-7:59 (evening = 4),
+  - 8-12 (night = 5)
+  
+```{r}
+clust_crime <- clust_crime %>%
+  mutate(TimeOfDay = ifelse(hour < 4, 0,
+         ifelse(hour < 8, 1,
+                ifelse(hour < 12, 2,
+                       ifelse(hour < 16, 3,
+                              ifelse(hour < 20, 4, 5))))))
+
+dist1249 <- clust_crime %>% filter(District_Num == "1249")
+vars <- dist1249 %>%
+  select(Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
+outcome <-dist1249$TimeOfDay
+
+train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
+train_set <- vars[train_indices, ]
+test_set <- vars[-train_indices, ]
+train_label <- outcome[train_indices]
+test_label <- outcome[-train_indices]
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
+dtest <- xgb.DMatrix(data = as.matrix(test_set))
+
+# Train the model
+tod_model <- xgb.train(data = dtrain, 
+                   nrounds = 100,
+                   eta = 0.1,
+                   objective = "multi:softmax",
+                   num_class = 6,
+                   eval_metric = "merror")
+
+predictions <- predict(tod_model, dtest)
+pred_and_test <- cbind.data.frame(predictions, test_label)
+confusionMatrix(factor(predictions), factor(test_label))
+
+```
+
 
 trying some crime models:
 ```{r}
