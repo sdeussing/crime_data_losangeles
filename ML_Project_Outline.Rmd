@@ -546,14 +546,29 @@ sum_by_cluster <- categoric_added %>%
 ```
 
 #### Prediction
-   
-- pull out the district numbers that are in each cluster of interest
-- subset crime to just these districts within the cluster (from original df, not grouped)
+
+Our clusters of interest are 1, 4, 10, and 11.
+
+In order to analyze these clusters, we'll assign the cluster number back to the entries in our original crime dataframe and then subset clusters of interest.
+```{r Put cluster numbers back}
+clust_crime <- crime %>%
+  left_join(named_clust, by = "District_Num")
+```
+
+```{r Clusters of interest}
+clust1 <- clust_crime %>% filter(Cluster_Num == 1)
+clust4 <- clust_crime %>% filter(Cluster_Num == 4)
+clust10 <- clust_crime %>% filter(Cluster_Num == 10)
+clust11 <- clust_crime %>% filter(Cluster_Num == 11)
+```
 
 - for each cluster, predict the crime code + predict time of day
   - time series models, random forest?
+  
+- crime code <-- date_occurred, time_occurred, blade, adult_arrest, juv_arrest, gun
+- time_occurred <-- crime_code, blade, adult_arrest, juv_arrest, gun
 
-```{r}
-library(randomForest)
-```
-
+Martin's notes:
+- This will be multiclass and predicting the full range of crime types is probably a bit too many levels. One option would be to group similar crimes together (e.g. violent crime) and then based on the other variables predict the type of violent crime that may take place. 
+- This could also then work with the creation of a dataset listing different values of date, time, victim, weapon etc, and the most likely type of crime to occur to that person could be extracted. This should also lead to more consistent patterns since the motivations behind auto theft and assault are likely to be quite different. 
+- For running multi-class models, XGBoost and Random forest should work well. Random forest will handle it without many modifications. For XGBoost, the evaluation metric changes from “error” to “merror” and when tuning we would then modify the code similarly (e.g. look at test_merror_mean).
