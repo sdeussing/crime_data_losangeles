@@ -648,12 +648,13 @@ hour_model <- xgb.train(data = dtrain,
                    eval_metric = "merror")
 
 predictions <- predict(hour_model, dtest)
-predictions <- round(predictions,0)
 pred_and_test <- cbind.data.frame(predictions, test_label)
 confusionMatrix(factor(predictions), factor(test_label))
 ```
 
-trying a crime model:
+not very good - maybe group by time of day (morning/afternoon/night) and run another model.
+
+trying some crime models:
 ```{r}
 # whether a crime will be violent
 clust_crime2 <- na.omit(clust_crime)
@@ -684,7 +685,7 @@ confusionMatrix(factor(pred_class), factor(test_label))
 
 ```
 
-predicting type of violent crime?? --> subset to only violent crime and run the model
+predicting type of violent crime?? --> subset to only violent crime and run model on crime_code
 
 ```{r}
 # different values of date, time, victim, weapon etc, and the most likely type of crime to occur to that person could be extracted.
