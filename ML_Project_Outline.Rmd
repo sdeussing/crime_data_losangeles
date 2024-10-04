@@ -547,6 +547,8 @@ sum_by_cluster <- categoric_added %>%
 
 sum_by_cluster
 ```
+
+
 ```{r Clusters by Color Map}
 
 cluster_map <- ggmap(la_map) +
@@ -579,18 +581,74 @@ clust_crime <- crime %>%
   left_join(named_clust, by = "District_Num")
 ```
 
-```{r Clusters of interest}
-clust1 <- clust_crime %>% filter(Cluster_Num == 1)
-clust4 <- clust_crime %>% filter(Cluster_Num == 4)
-clust10 <- clust_crime %>% filter(Cluster_Num == 10)
-clust11 <- clust_crime %>% filter(Cluster_Num == 11)
-```
-
 - for each cluster, predict the crime code + predict time of day
   - time series models, random forest?
   
 - crime code <-- date_occurred, time_occurred, blade, adult_arrest, juv_arrest, gun
 - time_occurred <-- crime_code, blade, adult_arrest, juv_arrest, gun
+
+
+Given a district and “violent crime” predict where the next one occurs we can xgboost thst
+```{r Make 'violent crime' variable}
+# violent crime = crime code < 200 or uses a blade/gun
+clust_crime$violent <- ifelse (((clust_crime$Crime_Code < 200) | (clust_crime$Gun == 1) | (clust_crime$Blade == 1)), 1, 0)
+```
+
+```{r Find most violent districts}
+worst10 <- clust_crime %>% 
+  filter(Cluster_Num == 10) %>%
+  group_by(District_Num) %>% 
+  mutate(sum_violent = sum(violent)) %>%
+  arrange(desc(sum_violent)) %>%
+  select(District_Num) %>%
+  head(1)
+worst10$District_Num[1] # District 1249 is of interest in cluster 10
+```
+
+Run XGboost on time of day: clean time + date
+```{r Clean Time/Date}
+library(lubridate)
+clust_crime$hour <- as.numeric(clust_crime$Time_Occurred)  %/% 100
+
+clust_crime$Date <- as.Date(mdy_hms(clust_crime$Date_Occurred))
+clust_crime$DayOfWeek <- wday(mdy_hms(clust_crime$Date_Occurred), label = TRUE)
+
+day_map <- c(Sun = 1, Mon = 2, Tues = 3, Wed = 4, Thurs = 5, Fri = 6, Sat = 7)
+clust_crime$numDayOfWeek <- day_map[clust_crime$DayOfWeek]
+```
+
+
+```{r XGBoost on districts}
+library(xgboost)
+set.seed(1234567)
+
+# for district 1249, predict time of next crime
+dist1249 <- clust_crime %>% filter(District_Num == "1249")
+
+vars <- dist1249 %>%
+  select(numDayOfWeek, violent, Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
+outcome <- dist1249$hour
+
+train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
+train_set <- vars[train_indices, ]
+test_set <- vars[-train_indices, ]
+train_label <- outcome[train_indices]
+test_label <- outcome[-train_indices]
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
+dtest <- xgb.DMatrix(data = as.matrix(test_set))
+
+# Train the model
+hour_model <- xgb.train(data = dtrain, 
+                   nrounds = 100,
+                   eta = 0.1,
+                   #objective = "reg:squarederror", 
+                   eval_metric = "auc",
+                   eval_metric = "error")
+
+predictions <- predict(hour_model, dtest)
+pred_and_test <- cbind.data.frame(predictions, test_label)
+```
 
 Martin's notes:
 - This will be multiclass and predicting the full range of crime types is probably a bit too many levels. One option would be to group similar crimes together (e.g. violent crime) and then based on the other variables predict the type of violent crime that may take place. 
