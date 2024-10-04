@@ -620,13 +620,14 @@ clust_crime$numDayOfWeek <- day_map[clust_crime$DayOfWeek]
 
 ```{r XGBoost on districts}
 library(xgboost)
+library(caret)
 set.seed(1234567)
 
 # for district 1249, predict time of next crime
 dist1249 <- clust_crime %>% filter(District_Num == "1249")
 
 vars <- dist1249 %>%
-  select(numDayOfWeek, violent, Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
+  select(violent, Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
 outcome <- dist1249$hour
 
 train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
@@ -642,13 +643,54 @@ dtest <- xgb.DMatrix(data = as.matrix(test_set))
 hour_model <- xgb.train(data = dtrain, 
                    nrounds = 100,
                    eta = 0.1,
-                   #objective = "reg:squarederror", 
+                   objective = "multi:softmax",
+                   num_class = 24,
+                   eval_metric = "merror")
+
+predictions <- predict(hour_model, dtest)
+predictions <- round(predictions,0)
+pred_and_test <- cbind.data.frame(predictions, test_label)
+confusionMatrix(factor(predictions), factor(test_label))
+```
+
+trying a crime model:
+```{r}
+# whether a crime will be violent
+clust_crime2 <- na.omit(clust_crime)
+vars <- clust_crime2 %>%
+  select(numDayOfWeek, hour, Premis_Code, Area, Vulnerability) %>%
+  mutate(Area = as.numeric(Area))
+outcome <- clust_crime2$violent
+
+train_indices <- sample(1:nrow(clust_crime2), 0.8 * nrow(clust_crime2))
+train_set <- vars[train_indices, ]
+test_set <- vars[-train_indices, ]
+train_label <- outcome[train_indices]
+test_label <- outcome[-train_indices]
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
+dtest <- xgb.DMatrix(data = as.matrix(test_set))
+
+violent_model <- xgb.train(data = dtrain, 
+                   nrounds = 100,
+                   eta = 0.1,
+                   objective = "binary:logistic", 
                    eval_metric = "auc",
                    eval_metric = "error")
 
-predictions <- predict(hour_model, dtest)
-pred_and_test <- cbind.data.frame(predictions, test_label)
+predictions <- predict(violent_model, dtest)
+pred_class <- ifelse(predictions > 0.5, 1, 0)
+confusionMatrix(factor(pred_class), factor(test_label))
+
 ```
+
+predicting type of violent crime?? --> subset to only violent crime and run the model
+
+```{r}
+# different values of date, time, victim, weapon etc, and the most likely type of crime to occur to that person could be extracted.
+
+```
+
 
 Martin's notes:
 - This will be multiclass and predicting the full range of crime types is probably a bit too many levels. One option would be to group similar crimes together (e.g. violent crime) and then based on the other variables predict the type of violent crime that may take place. 
