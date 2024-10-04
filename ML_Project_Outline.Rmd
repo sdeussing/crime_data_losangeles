@@ -477,6 +477,7 @@ tsne_obj13$Y %>%
 
 
 ```{r}
+library(tidyr)
 # Extract clusters
 clusters_13 <- pam_fit13$cluster
 # Extract centers
@@ -543,7 +544,30 @@ sum_by_cluster <- categoric_added %>%
          modeWeapon = Mode(Most_Common_Weapon),
          avgLat = mean(Avg_LAT),
          avgLon = mean(Avg_LON))
+
+sum_by_cluster
 ```
+```{r Clusters by Color Map}
+
+cluster_map <- ggmap(la_map) +
+  geom_point(data = sum_by_cluster, aes(x = Avg_LON, y = Avg_LAT, color = as.factor(Cluster_Num)), size = 2)+
+  theme(
+    plot.title = element_text(size = 10),  # Adjust the size here
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+  ) +
+  labs(
+    title = "Map of LA showing our Highlighted Clusters",
+    color = "Cluster Number"
+  ) +
+  guides(size = "none") 
+cluster_map
+```
+
 
 #### Prediction
 
