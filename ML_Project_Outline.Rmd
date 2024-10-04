@@ -364,8 +364,8 @@ crime$Blade <- ifelse(is.na(crime$Blade), 0, crime$Blade)
 crime <- crime %>%
   select(-c(DR_NO, Date_Rptd, Part_1_2, Mocode, Location, Cross_Street, Vict_Age, Vict_Sex,
             Crm_Cd1, Crm_Cd2, Crm_Cd3, Vict_Descent, Severity_1, Severity_2, Severity_3))
+write.csv(crime, 'crime_data.csv')
 ```
-
 
 
 ```{r Group by District}
@@ -533,12 +533,27 @@ length(clusters_13)
 named_clust <- cbind(d_details, clusters_13) %>% rename( "Cluster_Num" = `...4`)
 
 categoric_added <- cbind(named_clust, d[,c(2, 3, 12)])  
-  categoric_added <- categoric_added[categoric_added$Cluster_Num %in% c(1, 4, 10, 11),]
+categoric_added <- categoric_added[categoric_added$Cluster_Num %in% c(1, 4, 10, 11),]
 
-sum <- categoric_added %>% group_by(Cluster_Num) 
-%>% mutate(modePrem = Mode(Most_Common_Premis))
-  
-  
-  
+sum_by_cluster <- categoric_added %>% 
+  group_by(Cluster_Num) %>%
+  select(-District_Num) %>%
+  mutate(modePrem = Mode(Most_Common_Premis),
+         modeCrime = Mode(Most_Common_Crime),
+         modeWeapon = Mode(Most_Common_Weapon),
+         avgLat = mean(Avg_LAT),
+         avgLon = mean(Avg_LON))
+```
+
+#### Prediction
+   
+- pull out the district numbers that are in each cluster of interest
+- subset crime to just these districts within the cluster (from original df, not grouped)
+
+- for each cluster, predict the crime code + predict time of day
+  - time series models, random forest?
+
+```{r}
+library(randomForest)
 ```
 
