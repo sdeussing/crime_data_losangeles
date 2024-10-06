@@ -520,6 +520,7 @@ g_heat_2 <- ggplot(data = center_reshape, # Set dataset
 # Generate plot
 g_heat_2
 ```
+
 Group 10- lots of guns/blade/arrests
 Group 11- high vulnerability and severity, low g/b/a
 Group 4- high vulnerability
@@ -685,16 +686,6 @@ vars <- worst_clusts %>%
   select(Crime_Code, District_Num, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
 outcome <-worst_clusts$TimeOfDay
 
-
-dist1249 <- clust_crime %>% filter(District_Num == "1249")
-
-
-vars <- dist1249 %>%
-  select(Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
-outcome <-dist1249$TimeOfDay
-
-#train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
-
 train_indices <- sample(1:nrow(worst_clusts), 0.8 * nrow(worst_clusts))
 train_set <- vars[train_indices, ]
 test_set <- vars[-train_indices, ]
@@ -704,9 +695,23 @@ test_label <- outcome[-train_indices]
 dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
 dtest <- xgb.DMatrix(data = as.matrix(test_set))
 
+
+# Tune number of rounds
+tune_nrounds <- xgb.cv(data = dtrain,
+              nfold = 5,
+              eta = 0.1, 
+              nrounds = 1000, 
+              early_stopping_rounds = 50,
+              verbose = 1, 
+              nthread = 1,
+              print_every_n = 20, 
+              objective = "multi:softmax", 
+              num_class = 6,
+              eval_metric = "merror")
+
 # Train the model
 tod_model <- xgb.train(data = dtrain, 
-                   nrounds = 100,
+                   nrounds = 59, # best iteration
                    eta = 0.1,
                    objective = "multi:softmax",
                    num_class = 6,
@@ -715,6 +720,11 @@ tod_model <- xgb.train(data = dtrain,
 predictions <- predict(tod_model, dtest)
 pred_and_test <- cbind.data.frame(predictions, test_label)
 confusionMatrix(factor(predictions), factor(test_label))
+
+# Extract importance
+imp_mat <- xgb.importance(model = tod_model)
+# Plot importance (top 10 variables)
+xgb.plot.importance(imp_mat, top_n = 7)
 ```
 
 Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61. Considering that we have six different periods for time of day, our model is neither a strong nor weak predictor.
@@ -724,7 +734,6 @@ In our next model, we will predict whether a crime will be violent. To do so, ou
 This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, whether they should be prepared for violence.
 ```{r Violent crime model}
 library(splitstackshape)
-clust_crime2 <- na.omit(clust_crime)
 
 #Evaluating our worst clusters
 worst_clusts <- clust_crime[clust_crime$Cluster_Num != 1,]
@@ -745,13 +754,6 @@ vars <- worst_clusts %>%
   select(numDayOfWeek, hour, month, year, Premis_Code, District_Num, Vulnerability)
 outcome <- worst_clusts$violent
 xg_data <- cbind(vars, outcome)
-
-# 
-# train_indices <- sample(1:nrow(worst_clusts), 0.8 * nrow(worst_clusts))
-# train_set <- vars[train_indices, ]
-# test_set <- vars[-train_indices, ]
-# train_label <- outcome[train_indices]
-# test_label <- outcome[-train_indices]
 
 set.seed(123456) # Set seed
 # Perform stratified sampling
@@ -795,8 +797,21 @@ dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_dat$outcome,
                       weight = weights[as.numeric(train_dat$outcome) + 1])
 dtest <- xgb.DMatrix(data = as.matrix(test_x))
 
+# Tune number of rounds
+tune_nrounds <- xgb.cv(data = dtrain,
+              nfold = 5,
+              eta = 0.1, 
+              nrounds = 1000, 
+              early_stopping_rounds = 50,
+              verbose = 1, 
+              nthread = 1,
+              print_every_n = 20, 
+              objective = "binary:logistic", 
+              eval_metric = "error")
+
+# Train the model
 violent_model <- xgb.train(data = dtrain, 
-                   nrounds = 100,
+                   nrounds = 433, # best iteration
                    eta = 0.1,
                    objective = "binary:logistic", 
                    eval_metric = "error")
@@ -804,10 +819,16 @@ violent_model <- xgb.train(data = dtrain,
 predictions <- predict(violent_model, dtest)
 pred_class <- ifelse(predictions > 0.5, 1, 0)
 conf_matrix <- confusionMatrix(factor(pred_class), factor(test_dat$outcome))
-ba <- conf_matrix$byClass["Balanced Accuracy"]
+
+# Extract importance
+imp_mat <- xgb.importance(model = violent_model)
+# Plot importance (top 10 variables)
+xgb.plot.importance(imp_mat, top_n = 7)
 
 ```
-In this model, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+In this model using 0.5 as the threshold, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+
+When looking at variable importance, we can see the most important variables in this model are
 
 ```{r}
 #Threshold testing
@@ -831,37 +852,5 @@ for (i in seq(0.4, 0.6, by = 0.01)){
 pred_class <- ifelse(predictions > best[1], 1, 0)
 confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
-Through threshold testing, by decreasing our threshold for what is 0 or 1 to 0.48, we increased our balanced accuracy to 0.69
 
-
-
-Our next model will predict the 'type' of crime to occur. In order to predict type, we will categorize crime using the first of its three-digit crime code.
-```{r crime group model}
-clust_crime2$crime_group <- as.numeric(substr(as.character(clust_crime2$Crime_Code), 1, 1))
-
-vars <- clust_crime2 %>%
-  select(Adult_Arrest, Juv_Arrest, Gun, Blade, numDayOfWeek, hour)
-outcome <-clust_crime2$crime_group - 1
-
-train_indices <- sample(1:nrow(clust_crime2), 0.8 * nrow(clust_crime2))
-train_set <- vars[train_indices, ]
-test_set <- vars[-train_indices, ]
-train_label <- outcome[train_indices]
-test_label <- outcome[-train_indices]
-
-dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
-dtest <- xgb.DMatrix(data = as.matrix(test_set))
-
-type_model <- xgb.train(data = dtrain, 
-                   nrounds = 100,
-                   eta = 0.1,
-                   objective = "multi:softmax",
-                   num_class = 9,
-                   eval_metric = "merror")
-
-predictions <- predict(type_model, dtest)
-pred_and_test <- cbind.data.frame(predictions, test_label)
-confusionMatrix(factor(predictions), factor(test_label))
-```
-
-For the purpose of the XGBoost model, we had to refactor our crime code levels from 100-900 to 000-800. Our model predicts the different crime classes with a balanced accuracy of between 0.5 - 0.67, except for crimes in the 700 and 800 range. 
+By using threshold testing for this model, we improved our balanced accuracy to 0.7250. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
