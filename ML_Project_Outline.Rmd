@@ -535,7 +535,7 @@ categoric_added <- categoric_added[categoric_added$Cluster_Num %in% c(1, 4, 10, 
 
 sum_by_cluster <- categoric_added %>% 
   group_by(Cluster_Num) %>%
-  select(-District_Num) %>%
+  #select(-District_Num) %>%
   mutate(modePrem = Mode(Most_Common_Premis),
          modeCrime = Mode(Most_Common_Crime),
          modeWeapon = Mode(Most_Common_Weapon),
@@ -543,6 +543,7 @@ sum_by_cluster <- categoric_added %>%
          avgLon = mean(Avg_LON))
 
 sum_by_cluster
+crime[crime$District_Num =='0252',]
 ```
 
 
@@ -617,6 +618,9 @@ clust_crime$hour <- as.numeric(clust_crime$Time_Occurred)  %/% 100
 
 clust_crime$Date <- as.Date(mdy_hms(clust_crime$Date_Occurred))
 clust_crime$DayOfWeek <- wday(mdy_hms(clust_crime$Date_Occurred), label = TRUE)
+clust_crime$month <- month(mdy_hms(clust_crime$Date_Occurred))
+clust_crime$year <- year(mdy_hms(clust_crime$Date_Occurred))
+
 
 day_map <- c(Sun = 1, Mon = 2, Tues = 3, Wed = 4, Thurs = 5, Fri = 6, Sat = 7)
 clust_crime$numDayOfWeek <- day_map[clust_crime$DayOfWeek]
@@ -703,26 +707,78 @@ confusionMatrix(factor(predictions), factor(test_label))
 Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61. Considering that we have six different periods for time of day, our model is neither a strong nor weak predictor.
 
 In our next model, we will predict whether a crime will be violent. To do so, our predictors will include the day of the week, hour of the day, premise code, area, and the vulnerability level of the individual to which the crime is performed.
+
+This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, wehther they should be prepared for violence.
 ```{r Violent crime model}
+library(splitstackshape)
 clust_crime2 <- na.omit(clust_crime)
-vars <- clust_crime2 %>%
-  select(numDayOfWeek, hour, Premis_Code, Area, Vulnerability) %>%
-  mutate(Area = as.numeric(Area))
-outcome <- clust_crime2$violent
 
-train_indices <- sample(1:nrow(clust_crime2), 0.8 * nrow(clust_crime2))
-train_set <- vars[train_indices, ]
-test_set <- vars[-train_indices, ]
-train_label <- outcome[train_indices]
-test_label <- outcome[-train_indices]
+#Evaluating our worst clusters
+worst_clusts <- clust_crime[clust_crime$Cluster_Num != 1,]
+worst_clusts$numDayOfWeek <- factor(worst_clusts$numDayOfWeek)
+worst_clusts$hour <- factor(worst_clusts$hour)
+worst_clusts$month <- factor(worst_clusts$month)
+worst_clusts$Premis_Code <- factor(worst_clusts$Premis_Code)
+worst_clusts$District_Num <- factor(worst_clusts$District_Num)
 
+
+
+worst_clusts <- na.omit(worst_clusts)
+
+
+vars <- worst_clusts %>%
+  select(numDayOfWeek, hour, month, year, Premis_Code, District_Num, Vulnerability)
+outcome <- worst_clusts$violent
+xg_data <- cbind(vars, outcome)
+
+# 
+# train_indices <- sample(1:nrow(worst_clusts), 0.8 * nrow(worst_clusts))
+# train_set <- vars[train_indices, ]
+# test_set <- vars[-train_indices, ]
+# train_label <- outcome[train_indices]
+# test_label <- outcome[-train_indices]
+
+set.seed(123456) # Set seed
+# Perform stratified sampling
+ split_dat <- stratified(xg_data, # Set dataset
+                         group = c("outcome", "numDayOfWeek", "hour", "month", "year", "Premis_Code", "District_Num"), # Set variables to use for stratification
+                         size = 0.2,  # Set size of test set
+                         bothSets = TRUE ) # Return both training and test sets
+ 
+ # Extract train data
+ train_dat <- split_dat[[2]]
+ # Extract test data
+ test_dat <- split_dat[[1]]
+
+# Check size
+nrow(train_dat)
 # Scale/balance data
-weights <- table(train_label)
+weights <- table(train_dat$outcome)
 weights <- sum(weights) / (length(weights) * weights)
 
-dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label,
-                      weight = weights[as.numeric(train_label) + 1])
-dtest <- xgb.DMatrix(data = as.matrix(test_set))
+train_dat$numDayOfWeek <- as.numeric(train_dat$numDayOfWeek)
+train_dat$hour <- as.numeric(train_dat$hour)
+train_dat$month <- as.numeric(train_dat$month)
+train_dat$Premis_Code <- as.numeric(train_dat$Premis_Code)
+train_dat$District_Num <- as.numeric(train_dat$District_Num)
+train_dat$outcome <- as.numeric(train_dat$outcome)
+
+train_x <- train_dat %>% select(-outcome)
+
+
+test_dat$numDayOfWeek <- as.numeric(test_dat$numDayOfWeek)
+test_dat$hour <- as.numeric(test_dat$hour)
+test_dat$month <- as.numeric(test_dat$month)
+test_dat$Premis_Code <- as.numeric(test_dat$Premis_Code)
+test_dat$District_Num <- as.numeric(test_dat$District_Num)
+test_dat$outcome <- as.numeric(test_dat$outcome)
+
+
+test_x <- test_dat %>% select(-outcome)
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_dat$outcome,
+                      weight = weights[as.numeric(train_dat$outcome) + 1])
+dtest <- xgb.DMatrix(data = as.matrix(test_x))
 
 violent_model <- xgb.train(data = dtrain, 
                    nrounds = 100,
@@ -732,7 +788,7 @@ violent_model <- xgb.train(data = dtrain,
 
 predictions <- predict(violent_model, dtest)
 pred_class <- ifelse(predictions > 0.5, 1, 0)
-confusionMatrix(factor(pred_class), factor(test_label))
+confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
 
 In this model, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
