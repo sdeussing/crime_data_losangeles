@@ -121,9 +121,6 @@ California Department of Justice. (2024). Law Enforcement Code Tables. Retrieved
 #### R-script with code used for initial data analysis.
 
 
-- Data overview, summary statistics, appropriate data visualization.
-
-
 ```{r Read in Data}
 library(readr)
 crime <- read_csv("Crime_Data_from_2020_to_Present.csv")
@@ -278,7 +275,7 @@ grid.arrange(arrest_map, armed_map1, nrow=1)
 
 From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
-#### Creating derived variables for part 2
+#### Creating derived variables
 ```{r Create Vulnerability Metric}
 crime$Vict_Age <- ifelse(crime$Vict_Age <= 0, NA, crime$Vict_Age)
 crime$Vulnerability <- 0
@@ -364,7 +361,7 @@ crime$Blade <- ifelse(is.na(crime$Blade), 0, crime$Blade)
 crime <- crime %>%
   select(-c(DR_NO, Date_Rptd, Part_1_2, Mocode, Location, Cross_Street, Vict_Age, Vict_Sex,
             Crm_Cd1, Crm_Cd2, Crm_Cd3, Vict_Descent, Severity_1, Severity_2, Severity_3))
-write.csv(crime, 'crime_data.csv')
+#write.csv(crime, 'crime_data.csv')
 ```
 
 
@@ -387,13 +384,12 @@ districts <- crime %>% group_by(District_Num) %>%
 
 ```
 
-
+#### PAM K-Means Clustering
 ```{r PAM K-Means CLustering}
 library(cluster)
 library(tibble)
 
 d <-  districts
-#select varaibles
 clust_data <- ungroup(d) %>% select(-c(Avg_LON, Avg_LAT, District_Num))
 
 #factor non numeric
@@ -475,6 +471,7 @@ tsne_obj13$Y %>%
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
+The clusters when k = 13 are more distinct than when k = 7, so we will use 13 clusters for further analysis.
 
 ```{r}
 library(tidyr)
@@ -574,6 +571,10 @@ cluster_map
 #### Prediction
 
 Our clusters of interest are 1, 4, 10, and 11.
+  - Cluster 10: lots of guns, blades, and arrests
+  - Cluster 11: high vulnerability and severity measures, but low weapon use and arrests
+  - Cluster 4: high vulnerability measures
+  - Cluster 1: the safest cluster (low vulnerability, severity, weapon use, arrests)
 
 In order to analyze these clusters, we'll assign the cluster number back to the entries in our original crime dataframe and then subset clusters of interest.
 ```{r Put cluster numbers back}
@@ -582,7 +583,6 @@ clust_crime <- crime %>%
 ```
 
 
-Given a district and “violent crime” predict where the next one occurs we can xgboost thst
 We want to analyze trends within 'violent crimes.' For our analysis, we will consider a violent crime one that has a crime code of less than 200 (making it the most severe in the Los Angeles rankings), or uses either a gun or a blade.
 ```{r Make 'violent crime' variable}
 # violent crime = crime code < 200 or uses a blade/gun
