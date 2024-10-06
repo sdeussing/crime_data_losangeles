@@ -520,6 +520,7 @@ g_heat_2 <- ggplot(data = center_reshape, # Set dataset
 # Generate plot
 g_heat_2
 ```
+
 Group 10- lots of guns/blade/arrests
 Group 11- high vulnerability and severity, low g/b/a
 Group 4- high vulnerability
@@ -691,9 +692,22 @@ test_label <- outcome[-train_indices]
 dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
 dtest <- xgb.DMatrix(data = as.matrix(test_set))
 
+# Tune number of rounds
+tune_nrounds <- xgb.cv(data = dtrain,
+              nfold = 5,
+              eta = 0.1, 
+              nrounds = 1000, 
+              early_stopping_rounds = 50,
+              verbose = 1, 
+              nthread = 1,
+              print_every_n = 20, 
+              objective = "multi:softmax", 
+              num_class = 6,
+              eval_metric = "merror")
+
 # Train the model
 tod_model <- xgb.train(data = dtrain, 
-                   nrounds = 100,
+                   nrounds = 59, # best iteration
                    eta = 0.1,
                    objective = "multi:softmax",
                    num_class = 6,
@@ -780,8 +794,21 @@ dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_dat$outcome,
                       weight = weights[as.numeric(train_dat$outcome) + 1])
 dtest <- xgb.DMatrix(data = as.matrix(test_x))
 
+# Tune number of rounds
+tune_nrounds <- xgb.cv(data = dtrain,
+              nfold = 5,
+              eta = 0.1, 
+              nrounds = 1000, 
+              early_stopping_rounds = 50,
+              verbose = 1, 
+              nthread = 1,
+              print_every_n = 20, 
+              objective = "binary:logistic", 
+              eval_metric = "error")
+
+# Train the model
 violent_model <- xgb.train(data = dtrain, 
-                   nrounds = 100,
+                   nrounds = 433, # best iteration
                    eta = 0.1,
                    objective = "binary:logistic", 
                    eval_metric = "error")
@@ -791,7 +818,7 @@ pred_class <- ifelse(predictions > 0.5, 1, 0)
 confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
 
-In this model, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+In this model, we see a balanced accuracy of 0.7250. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
 
 
 Our next model will predict the 'type' of crime to occur. In order to predict type, we will categorize crime using the first of its three-digit crime code.
@@ -810,6 +837,7 @@ test_label <- outcome[-train_indices]
 
 dtrain <- xgb.DMatrix(data = as.matrix(train_set), label = train_label)
 dtest <- xgb.DMatrix(data = as.matrix(test_set))
+
 
 type_model <- xgb.train(data = dtrain, 
                    nrounds = 100,
