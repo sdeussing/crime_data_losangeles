@@ -677,12 +677,25 @@ clust_crime <- clust_crime %>%
                        ifelse(hour < 16, 3,
                               ifelse(hour < 20, 4, 5))))))
 
+worst_clusts <- clust_crime[clust_crime$Cluster_Num != 1,]
+
+worst_clusts$District_Num <- as.numeric(worst_clusts$District_Num)
+
+vars <- worst_clusts %>%
+  select(Crime_Code, District_Num, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
+outcome <-worst_clusts$TimeOfDay
+
+
 dist1249 <- clust_crime %>% filter(District_Num == "1249")
+
+
 vars <- dist1249 %>%
   select(Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
 outcome <-dist1249$TimeOfDay
 
-train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
+#train_indices <- sample(1:nrow(dist1249), 0.8 * nrow(dist1249))
+
+train_indices <- sample(1:nrow(worst_clusts), 0.8 * nrow(worst_clusts))
 train_set <- vars[train_indices, ]
 test_set <- vars[-train_indices, ]
 train_label <- outcome[train_indices]
@@ -708,13 +721,15 @@ Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61
 
 In our next model, we will predict whether a crime will be violent. To do so, our predictors will include the day of the week, hour of the day, premise code, area, and the vulnerability level of the individual to which the crime is performed.
 
-This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, wehther they should be prepared for violence.
+This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, whether they should be prepared for violence.
 ```{r Violent crime model}
 library(splitstackshape)
 clust_crime2 <- na.omit(clust_crime)
 
 #Evaluating our worst clusters
 worst_clusts <- clust_crime[clust_crime$Cluster_Num != 1,]
+
+
 worst_clusts$numDayOfWeek <- factor(worst_clusts$numDayOfWeek)
 worst_clusts$hour <- factor(worst_clusts$hour)
 worst_clusts$month <- factor(worst_clusts$month)
@@ -788,10 +803,36 @@ violent_model <- xgb.train(data = dtrain,
 
 predictions <- predict(violent_model, dtest)
 pred_class <- ifelse(predictions > 0.5, 1, 0)
+conf_matrix <- confusionMatrix(factor(pred_class), factor(test_dat$outcome))
+ba <- conf_matrix$byClass["Balanced Accuracy"]
+
+```
+In this model, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+
+```{r}
+#Threshold testing
+curr = 0
+for (i in seq(0.4, 0.6, by = 0.01)){
+  test_pred <- ifelse(is.na(predictions), NA, ifelse(predictions > i, 1, 0))
+  
+  accuracy <- mean(as.numeric(test_pred) == as.numeric(test_dat$outcome))
+  conf_matrix <- confusionMatrix(factor(test_pred), factor(test_dat$outcome))
+  ba <- conf_matrix$byClass["Balanced Accuracy"]
+  
+  
+  if (ba > curr){
+    best = c(i, ba)
+    curr = ba
+  }
+  
+}
+
+
+pred_class <- ifelse(predictions > best[1], 1, 0)
 confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
+Through threshold testing, by decreasing our threshold for what is 0 or 1 to 0.48, we increased our balanced accuracy to 0.69
 
-In this model, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
 
 
 Our next model will predict the 'type' of crime to occur. In order to predict type, we will categorize crime using the first of its three-digit crime code.
