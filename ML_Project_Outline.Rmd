@@ -729,6 +729,18 @@ xgb.plot.importance(imp_mat, top_n = 7)
 
 Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61. Considering that we have six different periods for time of day, our model is neither a strong nor weak predictor.
 
+
+```{r}
+library("ggforce")
+
+shap_long_iris <- shap.prep(xgb_model = tod_model, X_train = train_set)
+
+# Plot SHAP importance
+shap.plot.summary(shap_long_iris, scientific = TRUE)
+```
+
+
+
 In our next model, we will predict whether a crime will be violent. To do so, our predictors will include the day of the week, hour of the day, premise code, area, and the vulnerability level of the individual to which the crime is performed.
 
 This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, whether they should be prepared for violence.
