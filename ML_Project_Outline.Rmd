@@ -713,7 +713,8 @@ tune_nrounds <- xgb.cv(data = dtrain,
 tod_model <- xgb.train(data = dtrain, 
                    nrounds = 59, # best iteration
                    eta = 0.1,
-                   objective = "multi:softmax",
+                   #objective = "multi:softmax",
+                   objective = "multi:softprob",
                    num_class = 6,
                    eval_metric = "merror")
 
@@ -725,6 +726,16 @@ confusionMatrix(factor(predictions), factor(test_label))
 imp_mat <- xgb.importance(model = tod_model)
 # Plot importance (top 10 variables)
 xgb.plot.importance(imp_mat, top_n = 7)
+
+imp_mat %>%
+  arrange(desc(Gain))
+
+library(pdp)
+
+# Create a partial dependence plot for a feature (e.g., "feature1")
+pdp_result <- partial(tod_model, pred.var = "Crime_Code", plot = TRUE, train = as.matrix(train_set),
+                      prob=TRUE)
+pdp_result
 ```
 
 Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61. Considering that we have six different periods for time of day, our model is neither a strong nor weak predictor.
@@ -732,8 +743,10 @@ Within each hour of the day, we see a balanced accuracy of between 0.50 and 0.61
 
 ```{r}
 library("ggforce")
+library("lightgbm")
+library("SHAPforxgboost")
 
-shap_long_iris <- shap.prep(xgb_model = tod_model, X_train = train_set)
+shap_long_iris <- shap.prep(xgb_model = tod_model, X_train = as.matrix(train_set))
 
 # Plot SHAP importance
 shap.plot.summary(shap_long_iris, scientific = TRUE)
@@ -837,6 +850,9 @@ imp_mat <- xgb.importance(model = violent_model)
 # Plot importance (top 10 variables)
 xgb.plot.importance(imp_mat, top_n = 7)
 
+pdp_result <- partial(violent_model, pred.var = "Premis_Code", plot = TRUE, train = as.matrix(train_x),
+                      prob=TRUE)
+pdp_result
 ```
 In this model using 0.5 as the threshold, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
 
