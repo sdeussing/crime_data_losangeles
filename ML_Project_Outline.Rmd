@@ -757,20 +757,43 @@ shap.plot.summary(shap_long_iris, scientific = TRUE)
 In our next model, we will predict whether a crime will be violent. To do so, our predictors will include the day of the week, hour of the day, premise code, area, and the vulnerability level of the individual to which the crime is performed.
 
 This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, whether they should be prepared for violence.
+
+```{r Sine/Cos Encoding}
+encode <- function(data, idx, max_val){
+  print(colnames(data[,idx]))
+  col_sin <- paste0(colnames(data[,idx]), '_sin')
+  
+  col_cos <- paste0(colnames(data[,idx]), '_cos')
+
+  sin_func <- function(x) {sin(2 * pi * as.numeric(x)/max_val)}
+  cos_func <- function(x) {cos(2 * pi * as.numeric(x)/max_val)}
+
+  
+  data$V1 <-  lapply(data[,idx], sin_func)
+  data$V2  <-  lapply(data[,idx], cos_func)
+  data <- data %>% rename(!!col_sin := V1, !!col_cos := V2)
+  return(data)
+}
+```
+
 ```{r Violent crime model}
 library(splitstackshape)
+library(fastDummies)
 
 #Evaluating our worst clusters
 worst_clusts <- clust_crime[clust_crime$Cluster_Num != 1,]
 
+#encode dow
+worst_clusts <- encode(worst_clusts, 31, 7)
 
-worst_clusts$numDayOfWeek <- factor(worst_clusts$numDayOfWeek)
-worst_clusts$hour <- factor(worst_clusts$hour)
-worst_clusts$month <- factor(worst_clusts$month)
-worst_clusts$Premis_Code <- factor(worst_clusts$Premis_Code)
-worst_clusts$District_Num <- factor(worst_clusts$District_Num)
+#encode hour
+worst_clusts <- encode(worst_clusts, 32, 6)
 
+#encode month
+worst_clusts <- encode(worst_clusts, 29, 12)
 
+#make premis and district num dummy variables
+worst_clusts <- fastDummies::dummy_cols(worst_clusts,select_columns = c('Premis_Code', 'District_Num'), remove_selected_columns = TRUE )
 
 worst_clusts <- na.omit(worst_clusts)
 
