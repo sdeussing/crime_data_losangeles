@@ -17,7 +17,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Our group is working with Los Angeles crime data from 2021-2024. The dataset is divided into region and lists the date, time, and type of crime. This is an interesting problem because of its practical implications - after identification of areas with high crime, the Los Angeles police department can place more officers at such locations (and at certain identified times).
 
-This problem has been attempted by other people on Kaggle. One such analysis looked at the crime rate per year and the time of day where the most crime occurs. This analysis also found the most likely victim of crime. Another analysis on Kaggle visualized the amount of crime by victim, area, and time of day. There were several other analyses on Kaggle performing the same operations as these two.
+This problem has been attempted by other people on Kaggle although mostly in an exploratory sense. Many projects on this dataset look at victim type and crime rate by hour, which are both features we will adapt and use for our analysis by including victim age in our derived variables and predicting hours of crime based on other features.
+
+One analysis by Navin Pal Singh on Kaggle, looked into distribution of crimes both geospatial, by time and by crime type. The output of his analysis was mostly visualizations including a bar chart of crime codes, a 3D plot of number of crimes by time and area, and a map plot of the areas. In general, his visualizations were hard to read with many variables and points overlapping on the axis and in the plot. We will look into using a similar technique of maps and bars to see distribution for our exploratory analysis, before choosing how to group our data for our models.
+
+Another analysis by Ronaldo Pangarego, that was published on Medium did a deep dive into all the variables in the LAPD crime data set. He found years, areas and days of the week that had the most crime. As well as distribution of crime type, weapon type and victim. Pangarego found that the most common crime type was "vehicle-stolen" and weapon was "strong-arm" so it will be interesting to see going forward if these categories have more predictive power in any of our models.
+
+
 
 Our analysis will be unique in that we are going to introduce several derived variables (explained in the Data Overview section below). We will also be using machine learning models to predict the type and time of crime, rather than producing mostly descriptive outputs.
 
@@ -32,7 +38,7 @@ Our plan is to identify districts of Los Angeles and times of the day that are "
 Part 2:
 Of the areas identified as "high-crime" in Part 1, we will then predict the next time and type of crime to occur.
 
-## Data overview
+## Data Overview
 #### What is the dataset you are going to use to solve this problem? Describe the dataset and its characteristics.
 
 The dataset contains columns that give the date, time, and location (area code, area name, and exact location) of the reported crime. There are also columns for the use of weapons (yes/no), the crime code, and the longitude/latitude coordinates. 
@@ -116,6 +122,10 @@ Both have contributed to data cleaning, initial analyses, and project descriptio
 “City of Los Angeles - Crime Data from 2020 to Present.” Data.Gov, data.lacity.org, 20 Sept. 2024, catalog.data.gov/dataset/crime-data-from-2020-to-present. 
 
 California Department of Justice. (2024). Law Enforcement Code Tables. Retrieved from https://oag.ca.gov/law/code-tables
+
+Pangarego, R. (2023). Case Study: LAPD Crime Data from 2020 to Oct 2023 - Analysis Using Python. Medium. Retrieved from https://medium.com/@rpangarego/case-study-lapd-crime-data-from-2020-to-oct-2023-analysis-using-python-1d5d6dbf58f8
+
+Singh, N. (n.d.). Crime Data. Kaggle. Retrieved from https://www.kaggle.com/code/navinpalsingh/crime-data/notebook
 
 ## R-Code
 #### R-script with code used for initial data analysis.
