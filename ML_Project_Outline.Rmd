@@ -1,5 +1,5 @@
 ---
-title: "ML_Project_Intro"
+title: "Analysis of Crime of Los Angeles 2020-2024"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
 output:
@@ -108,24 +108,6 @@ From our row-wise derived variables, we will create __district-wise derived vari
 
 The dataset can be accessed at:
 https://catalog.data.gov/dataset/crime-data-from-2020-to-present
-
-## Contribution
-#### Which team members contributed to each area of the project.
-
-Imogen Meers & Sarah Deussing
-
-Both have contributed to data cleaning, initial analyses, and project description.
-
-## Bibliography
-#### Citations for the references used.
-
-“City of Los Angeles - Crime Data from 2020 to Present.” Data.Gov, data.lacity.org, 20 Sept. 2024, catalog.data.gov/dataset/crime-data-from-2020-to-present. 
-
-California Department of Justice. (2024). Law Enforcement Code Tables. Retrieved from https://oag.ca.gov/law/code-tables
-
-Pangarego, R. (2023). Case Study: LAPD Crime Data from 2020 to Oct 2023 - Analysis Using Python. Medium. Retrieved from https://medium.com/@rpangarego/case-study-lapd-crime-data-from-2020-to-oct-2023-analysis-using-python-1d5d6dbf58f8
-
-Singh, N. (n.d.). Crime Data. Kaggle. Retrieved from https://www.kaggle.com/code/navinpalsingh/crime-data/notebook
 
 ## Implementation
 ### Initial Data Cleaning
@@ -928,3 +910,19 @@ By using threshold testing for this model, we improved our balanced accuracy to 
 When considering future work for this project, we would like to expand our analysis to other major cities in the US. It would be interesting to see if other cities had similar patterns of violence and times of day and also if the same values have the same predictive power across the US.
 
 When considering implementation for this project, we would expand our findings by using different weightings to calculate our severity or vulnerability index. Our hope would be to do more research in victim fatality, which would guide us to better quantify the vulnerable population and even include vulnerability due to race. In addition, we did not use any time series models in our prediction, instead transforming our time variables with sin/cos or leaving them as factors. This meant that we were not investigating patterns over time. This would be an interesting analysis to help assess whether our project or any other initiatives in the city are successful, by seeing if crime is trending down.
+
+## Contribution
+
+Imogen Meers & Sarah Deussing
+
+Both have contributed to data cleaning, initial analyses, and project description.
+
+## Bibliography
+
+“City of Los Angeles - Crime Data from 2020 to Present.” Data.Gov, data.lacity.org, 20 Sept. 2024, catalog.data.gov/dataset/crime-data-from-2020-to-present. 
+
+California Department of Justice. (2024). Law Enforcement Code Tables. Retrieved from https://oag.ca.gov/law/code-tables
+
+Pangarego, R. (2023). Case Study: LAPD Crime Data from 2020 to Oct 2023 - Analysis Using Python. Medium. Retrieved from https://medium.com/@rpangarego/case-study-lapd-crime-data-from-2020-to-oct-2023-analysis-using-python-1d5d6dbf58f8
+
+Singh, N. (n.d.). Crime Data. Kaggle. Retrieved from https://www.kaggle.com/code/navinpalsingh/crime-data/notebook
