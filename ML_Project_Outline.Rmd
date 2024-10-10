@@ -127,9 +127,8 @@ Pangarego, R. (2023). Case Study: LAPD Crime Data from 2020 to Oct 2023 - Analys
 
 Singh, N. (n.d.). Crime Data. Kaggle. Retrieved from https://www.kaggle.com/code/navinpalsingh/crime-data/notebook
 
-## R-Code
-#### R-script with code used for initial data analysis.
-
+## Implementation
+### Initial Data Cleaning
 
 ```{r Read in Data}
 library(readr)
@@ -151,7 +150,7 @@ colnames(crime) <- new_colnames
 
 ```
 
-
+### Exploratory Anlysis
 ```{r Number of Crimes by Area Code}
 library(ggplot2)
 by_area <- ggplot(crime, aes(x=Area)) + geom_bar() +
@@ -181,7 +180,7 @@ by_age
 
 The distribution of victim ages is relatively normal and similar between male and female with the most crimes being committed against males and females aged 25 to 50. From the area of each histogram you can see there is a roughly equal number of crimes committed against males and females. 
 
-```{r Severity of Crimes by Area}
+```{r Severity of Crimes by Area, warning=FALSE}
 library(dplyr)
 library(ggmap)
 
@@ -204,7 +203,7 @@ summary_by_area <- indicators[indicators$LON != 0 & indicators$ LAT !=0,] %>%
 
 ```
 
-```{r}
+```{r warning=FALSE}
 #Plotting Crimes on LA MAP
 register_stadiamaps("9e07144d-cdab-48f9-a35d-298e1bbece2e")
 
@@ -241,7 +240,7 @@ armed_map
 
 This shows every crime in out data set coloured by armed or not. It is quite difficult to tell as there are so many crimes that overlap but you can see some areas where there are more concentrated crimes with weapons, such as the centre.
 
-```{r}
+```{r warning=FALSE}
 arrest_map <- ggmap(la_map) +
   geom_point(data = summary_by_area, aes(x = avg_lon, y = avg_lat, color = Percent_Arrests, size = 3))+
   theme(
@@ -285,7 +284,7 @@ grid.arrange(arrest_map, armed_map1, nrow=1)
 
 From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
-#### Creating derived variables
+### Derived Variables
 ```{r Create Vulnerability Metric}
 crime$Vict_Age <- ifelse(crime$Vict_Age <= 0, NA, crime$Vict_Age)
 crime$Vulnerability <- 0
@@ -375,7 +374,7 @@ crime <- crime %>%
 ```
 
 
-```{r Group by District}
+```{r Group by District, warning=FALSE}
 library(DescTools)
 crime$Weapon_Used_Code <- as.numeric(crime$Weapon_Used_Code)
 
@@ -394,8 +393,8 @@ districts <- crime %>% group_by(District_Num) %>%
 
 ```
 
-#### PAM K-Means Clustering
-```{r PAM K-Means CLustering}
+### PAM K-Means Clustering
+```{r PAM K-Means CLustering, warning=FALSE}
 library(cluster)
 library(tibble)
 
@@ -446,7 +445,7 @@ sil_width %>%
 ```
 Looking at this graph, both 7 and 13 are local maximums so we will look at the clustering for both of these.
 
-```{r}
+```{r warning=FALSE}
 library(Rtsne)
 
 pam_fit7 <- pam(gower_dist, diss =TRUE, k = 7)
@@ -483,7 +482,9 @@ tsne_obj13$Y %>%
 
 The clusters when k = 13 are more distinct than when k = 7, so we will use 13 clusters for further analysis.
 
-```{r}
+#### Visualization of Clusters
+
+```{r warning=FALSE}
 library(tidyr)
 # Extract clusters
 clusters_13 <- pam_fit13$cluster
@@ -508,8 +509,6 @@ center_df <- data.frame(cluster, res_mat)
 
 # Reshape the data
 center_reshape <- gather(center_df, features, values, Avg_Vulnerability:Num_Blade)
-# View result
-head(center_reshape)
 
 # Create plot
 g_heat_2 <- ggplot(data = center_reshape, # Set dataset
@@ -530,15 +529,15 @@ g_heat_2 <- ggplot(data = center_reshape, # Set dataset
 # Generate plot
 g_heat_2
 ```
+The clusters of interest that we identified:
 
 Group 10- lots of guns/blade/arrests
-Group 11- high vulnerability and severity, low g/b/a
+Group 11- high vulnerability and severity, but low guns/blades/arrests
 Group 4- high vulnerability
 Group 1- safest
 
 ```{r}
 d_details <- d %>% select(District_Num, Avg_LON, Avg_LAT)
-length(clusters_13)
 named_clust <- cbind(d_details, clusters_13) %>% rename( "Cluster_Num" = `...4`)
 
 categoric_added <- cbind(named_clust, d[,c(2, 3, 12)])  
@@ -553,12 +552,12 @@ sum_by_cluster <- categoric_added %>%
          avgLat = mean(Avg_LAT),
          avgLon = mean(Avg_LON))
 
-sum_by_cluster
-crime[crime$District_Num =='0252',]
+#preview of df with cluster num
+head(sum_by_cluster)
 ```
 
 
-```{r Clusters by Color Map}
+```{r Clusters by Color Map, warning=FALSE}
 
 cluster_map <- ggmap(la_map) +
   geom_point(data = sum_by_cluster, aes(x = Avg_LON, y = Avg_LAT, color = as.factor(Cluster_Num)), size = 2)+
@@ -580,7 +579,7 @@ cluster_map
 ```
 
 
-#### Prediction
+### Predictive Analysis
 
 Our clusters of interest are 1, 4, 10, and 11.
   - Cluster 10: lots of guns, blades, and arrests
@@ -589,7 +588,7 @@ Our clusters of interest are 1, 4, 10, and 11.
   - Cluster 1: the safest cluster (low vulnerability, severity, weapon use, arrests)
 
 In order to analyze these clusters, we'll assign the cluster number back to the entries in our original crime dataframe and then subset clusters of interest.
-```{r Put cluster numbers back}
+```{r Put cluster numbers back, warning=FALSE}
 clust_crime <- crime %>%
   left_join(named_clust, by = "District_Num")
 ```
@@ -623,7 +622,7 @@ worst1$District_Num[1] # District 1803 is of interest in cluster 1
 ```
 
 Further setup for our XGBoost models include standardizing time and date of the crime. We will also create a variable for day of the week Sunday (1) - Saturday (7).
-```{r Clean Time/Date}
+```{r Clean Time/Date, warning=FALSE}
 library(lubridate)
 clust_crime$hour <- as.numeric(clust_crime$Time_Occurred)  %/% 100
 
@@ -636,9 +635,10 @@ clust_crime$year <- year(mdy_hms(clust_crime$Date_Occurred))
 day_map <- c(Sun = 1, Mon = 2, Tues = 3, Wed = 4, Thurs = 5, Fri = 6, Sat = 7)
 clust_crime$numDayOfWeek <- day_map[clust_crime$DayOfWeek]
 ```
-
+#### Time of Day Crime XGBoost Model
+##### Predicting Hour
 Our first prediction will be the hour that a crime occurs. Factors will include whether the crime was violent, the crime code, premise code, and whether there were any arrests or weapons involved in the crime.
-```{r XGBoost on districts}
+```{r XGBoost on districts, warning=FALSE}
 library(xgboost)
 library(caret)
 set.seed(1234567)
@@ -671,6 +671,7 @@ predictions <- predict(hour_model, dtest)
 pred_and_test <- cbind.data.frame(predictions, test_label)
 confusionMatrix(factor(predictions), factor(test_label))
 ```
+##### Predicting Time of Day
 
 This model is too granular to make good predictions. Instead, let's predict time of day in 6 four-hour periods.
   - 0-3:59 (late night = 0)
@@ -680,7 +681,7 @@ This model is too granular to make good predictions. Instead, let's predict time
   - 4-7:59 (evening = 4),
   - 8-12 (night = 5)
   
-```{r XGBoost for hour}
+```{r XGBoost for hour, warning=FALSE}
 clust_crime <- clust_crime %>%
   mutate(TimeOfDay = ifelse(hour < 4, 0,
          ifelse(hour < 8, 1,
@@ -763,6 +764,7 @@ shap.plot.summary(shap_long_iris, scientific = TRUE)
 ```
 
 
+#### Violent Crime XGBoost Model
 
 In our next model, we will predict whether a crime will be violent. To do so, our predictors will include the day of the week, hour of the day, premise code, area, and the vulnerability level of the individual to which the crime is performed.
 
@@ -915,3 +917,14 @@ confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
 
 By using threshold testing for this model, we improved our balanced accuracy to 0.7250. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+
+## Results
+
+## Discussion
+
+## Conclusion 
+
+##Future Work
+When considering future work for this project, we would like to expand our analysis to other major cities in the US. It would be interesting to see if other cities had similar patterns of violence and times of day and also if the same values have the same predictive power across the US.
+
+When considering implementation for this project, we would expand our findings by using different weightings to calculate our severity or vulnerability index. Our hope would be to do more research in victim fatality, which would guide us to better quantify the vulnerable population and even include vulnerability due to race. In addition, we did not use any time series models in our prediction, instead transforming our time variables with sin/cos or leaving them as factors. This meant that we were not investigating patterns over time. This would be an interesting analysis to help assess whether our project or any other initiatives in the city are successful, by seeing if crime is trending down.
