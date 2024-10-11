@@ -1,5 +1,5 @@
 ---
-title: "ML_Project_Intro"
+title: "Analysis of Crime Data in Los Angeles 2021-2024"
 author: "Sarah Deussing & Imogen Meers"
 date: "2024-09-20"
 output:
@@ -367,7 +367,7 @@ districts <- crime %>% group_by(District_Num) %>%
             Num_Blade = sum(Blade),
             Most_Common_Weapon = Mode(Weapon_Used_Code, na.rm=TRUE))
 
-write.csv(districts, 'districts.csv')
+#write.csv(districts, 'districts.csv')
 ```
 
 Read in dataframe (from above)
@@ -376,6 +376,22 @@ Read in dataframe (from above)
 #crime <- read.csv('crime_final.csv')
 ```
 
+## Methods for Analysis
+Methods (0.5 - 1 pages) - Provide a one to two paragraph description of the method used, its applicability to/suitability for the problem along with the methods strengths and limitations. I am looking to see your understanding of the method here.
+
+We will be using two methods for analysis.
+
+1. PAM K-Means Clustering:
+  Clustering is an unsupervised learning method. This model partitions the data into a chosen 'k' number of clusters. It does so by clustering around the 'mediods.' In this iterative process, 'k' random entries are chosen as the mediods, and then every other entry is assigned to the closest mediod, making distinct clusters. Then, the entry within each cluster that has the lowest average distance to all other entries is assigned to be the new mediod. This process is repeated until the mediods don't change - then, the clusters have been created. 
+  This is similar to the k-means clustering done in class with one key difference. K-means clustering selects the 'centroid' as the center of the cluster (a point with the smallest distance from everything in the cluster, but doesn't necessarily need to be an entry). PAM clustering uses centroids, which are entries themselves.
+  PAM Clustering was chosen because it can better handle categorical variables in its clustering process. One downside is that it has a slower runtime than traditional k-means. It is suitable for our analysis because we have almost 1 million entries and we want to analyze only a few "high-crime" areas. Clustering will identify these areas.
+  
+
+2. XGBoost:
+  XGBoost is a supervised learning model. It is a very high-performing model that can find both linear and non-linear patterns between the predictions and the outcome variable using an iterative decision tree process. Because our dataset is large and we have many predictors, we can expect slower runtimes for this model and must be cautious about overfitting. We will run two different xgboost models: (1) time of the day, and (2) violence. 
+  (1) The Time of the Day model will use the "multi:softprob" objective because time of the day has more than 2 classifications (i.e. is not binary). The model will output a probability distribution of all classes for each entry in the data. We will select the class with the highest probability to be the predicted class. We can then look at the balanced accuracy for each class to see how our model performs.
+  (2) The Violent model will use the "binary:logistic" objective because a crime is either non-violent (0) or violent (1). The binary model will output a probability for each entry, and then we select a threshold value  between 0 and 1. Probabilities below the threshold become a predicted 0, and probabilies above the threshold become a predicted 1. We can then look at the balanced accuracy, sensitivity, and specificity for our model using a confusion matrix. Balanced accuracy is the average of our sensitivity and specificity scores, and accounts for class imbalance (which regular accuracy does not). Sensitivity is the "true positive rate" - the number of positive classes that are predicted as positive. Specificity is the "true negative rate" - the number of negative classes that are predicted as negative. 
+  For both models, we can tune the number of rounds to find the best iteraction, and (after prediction), extract the variables that were the most important as predictors.
 
 #### PAM K-Means Clustering
 ```{r PAM K-Means CLustering}
@@ -514,10 +530,11 @@ g_heat_2 <- ggplot(data = center_reshape, # Set dataset
 g_heat_2
 ```
 
-Group 10- Lots of guns/blade/arrests
-Group 11- High vulnerability and severity, low guns/blades/arrests
-Group 4- High vulnerability
-Group 1- safest (low severity/vulnerability, guns/blades/arrests)
+We see several clusters that are distinct in our heatmap.
+  - Group 10: Lots of guns/blade/arrests
+  - Group 11: High vulnerability and severity, low guns/blades/arrests
+  - Group 4: High vulnerability
+  - Group 1: Safest (low severity/vulnerability, guns/blades/arrests)
 
 Assign cluster numbers back for mapping purposes.
 ```{r}
@@ -591,7 +608,8 @@ worst10 <- clust_crime %>%
   arrange(desc(sum_violent)) %>%
   select(District_Num) %>%
   head(1)
-worst10$District_Num[1] # District 1249 is the most "violent" in cluster 10
+worst10$District_Num[1] 
+# District 1249 is the most "violent" in cluster 10
 
 worst11 <- clust_crime %>% 
   filter(Cluster_Num == 11) %>%
@@ -600,7 +618,8 @@ worst11 <- clust_crime %>%
   arrange(desc(sum_violent)) %>%
   select(District_Num) %>%
   head(1)
-worst1$District_Num[1] # District ___ is the most "violent" in cluster 11
+worst11$District_Num[1] 
+# District 2187 is the most "violent" in cluster 11
 
 worst4 <- clust_crime %>% 
   filter(Cluster_Num == 4) %>%
@@ -609,7 +628,18 @@ worst4 <- clust_crime %>%
   arrange(desc(sum_violent)) %>%
   select(District_Num) %>%
   head(1)
-worst1$District_Num[1] # District __ is the most "violent" in cluster 4
+worst4$District_Num[1] 
+# District 1846 is the most "violent" in cluster 4
+
+safest1 <- clust_crime %>% 
+  filter(Cluster_Num == 1) %>%
+  group_by(District_Num) %>% 
+  mutate(sum_violent = sum(violent)) %>%
+  arrange(sum_violent) %>%
+  select(District_Num) %>%
+  head(1)
+safest1$District_Num[1] 
+# District 1759 is the "safest/least violent" in cluster 1
 
 ```
 
@@ -631,19 +661,42 @@ day_map <- c(Sun = 1, Mon = 2, Tues = 3, Wed = 4, Thurs = 5, Fri = 6, Sat = 7)
 clust_crime$numDayOfWeek <- day_map[clust_crime$DayOfWeek]
 ```
 
+```{r Make worst clusters df}
+worst_clusts <- clust_crime %>%
+  filter(Cluster_Num == 4 | Cluster_Num == 10 | Cluster_Num == 11)
+
+worst_clusts$District_Num <- as.numeric(worst_clusts$District_Num)
+
+# There are 2 rows with NA for Premis Code.
+worst_clusts <- worst_clusts[!is.na(worst_clusts$Premis_Code), ]
+```
+
+Setup for XGBoost: Premis_Code and Crime_Code are categorical variables, so they need to be made into dummy variables. 
+```{r Setup for XGBoost}
+#worst_clusts <- fastDummies::dummy_cols(worst_clusts,select_columns = c('Premis_Code', 'District_Num'), remove_selected_columns = TRUE )
+dummy_vars <- model.matrix(hour ~ Premis_Code + District_Num - 1, data = worst_clusts)
+
+# Combine into final dataframe for hour
+hour_data <- as.data.frame(cbind(worst_clusts$hour, dummy_vars, 
+                                 worst_clusts[, c("violent", "Adult_Arrest", "Juv_Arrest", "Gun", "Blade")]))
+hour_data <- hour_data %>%
+  rename(hour = `worst_clusts$hour`)
+```
+
+
 ###### Hour (Time of Day) Models
 Our first prediction will be the hour that a crime occurs. Factors will include whether the crime was violent, the crime code, premise code, and whether there were any arrests or weapons involved in the crime.
-```{r XGBoost on districts}
+```{r XGBoost for hour}
 library(xgboost)
 library(caret)
 set.seed(1234567)
 
 
-vars <- clust_crime %>%
-  select(violent, Crime_Code, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
-outcome <- clust_crime$hour
+vars <- hour_data %>%
+  select(-hour)
+outcome <- hour_data$hour
 
-train_indices <- sample(1:nrow(clust_crime), 0.8 * nrow(clust_crime))
+train_indices <- sample(1:nrow(hour_data), 0.8 * nrow(hour_data))
 train_set <- vars[train_indices, ]
 test_set <- vars[-train_indices, ]
 train_label <- outcome[train_indices]
@@ -691,23 +744,26 @@ time_of_day_func <- function(hour) {
   }
 }
 
-clust_crime <- clust_crime %>%
+worst_clusts <- worst_clusts %>%
   mutate(TimeOfDay = sapply(hour, time_of_day_func))
 ```
 
+We need to do the same dummy variable setup for our time of day model.
+```{r TOD setup}
+# Combine into final dataframe for time of day
+tod_data <- as.data.frame(cbind(worst_clusts$TimeOfDay, dummy_vars, 
+                                 worst_clusts[, c("violent", "Adult_Arrest", "Juv_Arrest", "Gun", "Blade")]))
+tod_data <- tod_data %>%
+  rename(TimeOfDay = `worst_clusts$TimeOfDay`)
+```
+
 Now we can run a model to predict a crime's time period of the day.
-We will do so with our 'worst clusters' - 2, 10, and 11.
 ```{r XGBoost for time period}
-worst_clusts <- clust_crime %>%
-  filter(Cluster_Num == 4 | Cluster_Num == 10 | Cluster_Num == 11)
+vars <- tod_data %>%
+  select(-TimeOfDay)
+outcome <- tod_data$TimeOfDay
 
-worst_clusts$District_Num <- as.numeric(worst_clusts$District_Num)
-
-vars <- worst_clusts %>%
-  select(Crime_Code, District_Num, Premis_Code, Adult_Arrest, Juv_Arrest, Gun, Blade)
-outcome <-worst_clusts$TimeOfDay
-
-train_indices <- sample(1:nrow(worst_clusts), 0.8 * nrow(worst_clusts))
+train_indices <- sample(1:nrow(tod_data), 0.8 * nrow(tod_data))
 train_set <- vars[train_indices, ]
 test_set <- vars[-train_indices, ]
 train_label <- outcome[train_indices]
@@ -718,7 +774,7 @@ dtest <- xgb.DMatrix(data = as.matrix(test_set))
 ```
 
 Let's tune the number of rounds for this model.
-```{r tune for time period}
+```{r tune for time period, eval=FALSE}
 # Tune number of rounds
 tune_nrounds <- xgb.cv(data = dtrain,
               nfold = 5,
@@ -731,24 +787,29 @@ tune_nrounds <- xgb.cv(data = dtrain,
               objective = "multi:softprob", 
               num_class = 6,
               eval_metric = "merror")
+
+best_nrounds_tod <- tune_nrounds$best_iteration
+best_nrounds_tod
 ```
 
-The best number of rounds is: _____
-
-Now we can train and predict with our model.
+Now that we have the best number of iterations, we can train and predict with our model.
 ```{r}
 # Train the model
 tod_model <- xgb.train(data = dtrain, 
-                   nrounds = 59, # best iteration
+                   nrounds = best_nrounds_tod, # best iteration
                    eta = 0.1,
                    objective = "multi:softprob",
                    num_class = 6,
                    eval_metric = "merror")
 
 predictions <- predict(tod_model, dtest)
-pred_and_test <- cbind.data.frame(predictions, test_label)
-confusionMatrix(factor(predictions), factor(test_label))
+
+pred_matrix <- matrix(predictions, ncol = 6, byrow = TRUE)
+classes <- apply(pred_matrix, 1, which.max) - 1
+confusionMatrix(factor(classes), factor(test_label))
 ```
+
+We see a balanced accuracy of between 0.50 - 0.55 for each class (time of day). 
 
 Let's look at variable importance.
 ```{r}
@@ -756,20 +817,27 @@ Let's look at variable importance.
 imp_mat <- xgb.importance(model = tod_model)
 # Plot importance (top 10 variables)
 xgb.plot.importance(imp_mat, top_n = 7)
-
-imp_mat %>%
-  arrange(desc(Gain))
 ```
 
-We can make partial dependence (pdp) plots for our most important variables.
+We see that Premis_Code is the most significant variable in terms of predictors. Let's further analyze the relationship between premis code and time of day.
+
+We can make partial dependence plots (pdp) for our most important variables.
 ```{r}
 library(pdp)
 
-pdp_result <- partial(tod_model, pred.var = "Crime_Code", plot = TRUE, train = as.matrix(train_set),
+pdp_result <- partial(tod_model, pred.var = "Premis_Code", plot = TRUE, train = as.matrix(train_set),
                       prob=TRUE)
 pdp_result
 ```
 
+We see that premis codes between 800 and 1,000 contribute the most as predictors. 
+```{r}
+crime %>% select(Premis_Code, Premis_Desc) %>% filter(Premis_Code > 800 & Premis_Code < 1000) %>% distinct() %>% sample_n(30)
+```
+
+We see that the Metro System in Los Angeles is the greatest predictor for the hour of crime.
+
+Let's look at the strength of our other predictors as well.
 ```{r}
 library("ggforce")
 library("lightgbm")
@@ -787,13 +855,13 @@ In our next model, we will predict whether a crime will be violent. To do so, ou
 
 This will help an officer know if a crime is reported at on x day at x time in x premises with x victim, whether they should be prepared for violence.
 
-First, we can encode hour as a sine/cosine value to make it loop (i.e. 00:00 is after 23:59).
+First, we can encode hour as a sine/cosine value to make it loop (i.e. 00:00 is after 23:59). We will do the same for the day of the week and month numbers.
 ```{r Sine/Cos Encoding}
 encode <- function(data, idx, max_val){
-  print(colnames(data[,idx]))
-  col_sin <- paste0(colnames(data[,idx]), '_sin')
+  print(colnames(data[idx]))
+  col_sin <- paste0(colnames(data[idx]), '_sin')
   
-  col_cos <- paste0(colnames(data[,idx]), '_cos')
+  col_cos <- paste0(colnames(data[idx]), '_cos')
 
   sin_func <- function(x) {sin(2 * pi * as.numeric(x)/max_val)}
   cos_func <- function(x) {cos(2 * pi * as.numeric(x)/max_val)}
@@ -806,68 +874,81 @@ encode <- function(data, idx, max_val){
 }
 
 # Encode Day of Week
-worst_clusts <- encode(worst_clusts, 31, 7)
+dow_col <- which(colnames(worst_clusts) == 'numDayOfWeek')
+worst_clusts <- encode(worst_clusts, dow_col, 7)
 
 #Encode hour
-worst_clusts <- encode(worst_clusts, 32, 6)
+tod_col <- which(colnames(worst_clusts) == 'TimeOfDay')
+worst_clusts <- encode(worst_clusts, tod_col, 6)
 
 #Encode month
-worst_clusts <- encode(worst_clusts, 29, 12)
-
+mth_col <- which(colnames(worst_clusts) == 'month')
+worst_clusts <- encode(worst_clusts, mth_col, 12)
 ```
 
 We will run our violent crime model on the same 'worst clusters' as before.
+
+We need to do the same dummy variable conversion as before.
+```{r}
+# Combine into final dataframe for violence
+violent_data <- as.data.frame(cbind(worst_clusts$violent, dummy_vars, 
+                                 worst_clusts[, c("year", "numDayOfWeek_sin", "numDayOfWeek_cos", "TimeOfDay_sin", "TimeOfDay_cos", "month_sin", "month_cos", "Vulnerability")]))
+violent_data <- violent_data %>%
+  rename(violent = `worst_clusts$violent`)
+```
+
+
 ```{r Violent crime model}
 library(splitstackshape)
-library(fastDummies)
-set.seed(123456)
 
-#make premis and district num dummy variables
-worst_clusts <- fastDummies::dummy_cols(worst_clusts,select_columns = c('Premis_Code', 'District_Num'), remove_selected_columns = TRUE )
-
-worst_clusts <- na.omit(worst_clusts)
-
-
-vars <- worst_clusts %>%
-  select(numDayOfWeek, hour, month, year, Premis_Code, District_Num, Vulnerability)
-outcome <- worst_clusts$violent
+vars <- violent_data %>%
+  select(-violent)
+outcome <- violent_data$violent
 xg_data <- cbind(vars, outcome)
 
 # Perform stratified sampling
- split_dat <- stratified(xg_data, # Set dataset
-                         group = c("outcome", "numDayOfWeek", "hour", "month", "year", "Premis_Code", "District_Num"), # Set variables to use for stratification
-                         size = 0.2,  # Set size of test set
-                         bothSets = TRUE ) # Return both training and test sets
+split_dat <- stratified(xg_data, # Set dataset
+                         group = c("outcome", "year", "Premis_Code", "District_Num"),
+                         size = 0.2,
+                         bothSets = TRUE ) 
  
- # Extract train data
- train_dat <- split_dat[[2]]
- # Extract test data
- test_dat <- split_dat[[1]]
+train_dat <- split_dat[[2]]
+test_dat <- split_dat[[1]]
 
-# Check size
-nrow(train_dat)
+#nrow(train_dat)
+
+
 # Scale/balance data
 weights <- table(train_dat$outcome)
 weights <- sum(weights) / (length(weights) * weights)
 
-train_dat$numDayOfWeek <- as.numeric(train_dat$numDayOfWeek)
-train_dat$hour <- as.numeric(train_dat$hour)
-train_dat$month <- as.numeric(train_dat$month)
-train_dat$Premis_Code <- as.numeric(train_dat$Premis_Code)
-train_dat$District_Num <- as.numeric(train_dat$District_Num)
-train_dat$outcome <- as.numeric(train_dat$outcome)
-
+# Make numeric: year, numDayOfWeek_sin/cos, TimeOfDay_sin/cos, month_sin/cos, Vulnerability, outcome 
+train_dat <- train_dat %>%
+  mutate(
+    year = as.numeric(year),
+    numDayOfWeek_sin = as.numeric(numDayOfWeek_sin),
+    numDayOfWeek_cos = as.numeric(numDayOfWeek_cos),
+    TimeOfDay_sin = as.numeric(TimeOfDay_sin),
+    TimeOfDay_cos = as.numeric(TimeOfDay_cos),
+    month_sin = as.numeric(month_sin),
+    month_cos = as.numeric(month_cos),
+    Vulnerability = as.numeric(Vulnerability),
+    outcome = as.numeric(outcome)
+  )
 train_x <- train_dat %>% select(-outcome)
 
-
-test_dat$numDayOfWeek <- as.numeric(test_dat$numDayOfWeek)
-test_dat$hour <- as.numeric(test_dat$hour)
-test_dat$month <- as.numeric(test_dat$month)
-test_dat$Premis_Code <- as.numeric(test_dat$Premis_Code)
-test_dat$District_Num <- as.numeric(test_dat$District_Num)
-test_dat$outcome <- as.numeric(test_dat$outcome)
-
-
+test_dat <- test_dat %>%
+  mutate(
+    year = as.numeric(year),
+    numDayOfWeek_sin = as.numeric(numDayOfWeek_sin),
+    numDayOfWeek_cos = as.numeric(numDayOfWeek_cos),
+    TimeOfDay_sin = as.numeric(TimeOfDay_sin),
+    TimeOfDay_cos = as.numeric(TimeOfDay_cos),
+    month_sin = as.numeric(month_sin),
+    month_cos = as.numeric(month_cos),
+    Vulnerability = as.numeric(Vulnerability),
+    outcome = as.numeric(outcome)
+  )
 test_x <- test_dat %>% select(-outcome)
 
 dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_dat$outcome,
@@ -875,9 +956,10 @@ dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_dat$outcome,
 dtest <- xgb.DMatrix(data = as.matrix(test_x))
 ```
 
+Let's tune the number of rounds for this model
 ```{r tune violence}
 # Tune number of rounds
-tune_nrounds <- xgb.cv(data = dtrain,
+tune_nrounds2 <- xgb.cv(data = dtrain,
               nfold = 5,
               eta = 0.1, 
               nrounds = 1000, 
@@ -887,42 +969,47 @@ tune_nrounds <- xgb.cv(data = dtrain,
               print_every_n = 20, 
               objective = "binary:logistic", 
               eval_metric = "error")
+
+best_nrounds_violent <- tune_nrounds2$best_iteration
+best_nrounds_violent
 ```
 
+Now we can run and predict with our model using this ideal number of rounds.
 ```{r test violence}
 # Train the model
 violent_model <- xgb.train(data = dtrain, 
-                   nrounds = 433, # best iteration
+                   nrounds = best_nrounds_violent, # best iteration
                    eta = 0.1,
                    objective = "binary:logistic", 
                    eval_metric = "error")
 
 predictions <- predict(violent_model, dtest)
 pred_class <- ifelse(predictions > 0.5, 1, 0)
-conf_matrix <- confusionMatrix(factor(pred_class), factor(test_dat$outcome))
+confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
+
+We see a balanced accuracy of 0.7163 with this model. Our sensitivity score is 0.6528, meaning that our model correctly identifies 65% of non-violent (0) cases as non-violent. Our specificity score is 0.7798, meaning that our model correctly identifies 78% of violent (1) cases as violent.  
 
 Let's look at variable importance.
 ```{r}
-# Extract importance
 imp_mat <- xgb.importance(model = violent_model)
-# Plot importance (top 10 variables)
 xgb.plot.importance(imp_mat, top_n = 7)
 ```
 
-Let's look at the pdp result for the most important factors.
+In this model, we see premis code and district number as the two strongest predictors. We can look at the pdp plots for both these factors.
+
 ```{r}
-pdp_result <- partial(violent_model, pred.var = "Premis_Code", plot = TRUE, train = as.matrix(train_x),
+pdp_result1 <- partial(violent_model, pred.var = "Premis_Code", plot = TRUE, train = as.matrix(train_x),
                       prob=TRUE)
-pdp_result
+pdp_result1
+
+pdp_result2 <- partial(violent_model, pred.var = "District_Num", plot = TRUE, train = as.matrix(train_x),
+                      prob=TRUE)
+pdp_result2
 ```
 
-In this model using 0.5 as the threshold, we see a balanced accuracy of 0.6576. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
-
-When looking at variable importance, we can see the most important variables in this model are
-
+Let's see if we can improve our model with threshold testing. We chose 0.5 as our threshold in our first iteration of the model.
 ```{r}
-#Threshold testing
 curr = 0
 for (i in seq(0.4, 0.6, by = 0.01)){
   test_pred <- ifelse(is.na(predictions), NA, ifelse(predictions > i, 1, 0))
@@ -931,29 +1018,32 @@ for (i in seq(0.4, 0.6, by = 0.01)){
   conf_matrix <- confusionMatrix(factor(test_pred), factor(test_dat$outcome))
   ba <- conf_matrix$byClass["Balanced Accuracy"]
   
-  
   if (ba > curr){
     best = c(i, ba)
     curr = ba
   }
-  
 }
-
 
 pred_class <- ifelse(predictions > best[1], 1, 0)
 confusionMatrix(factor(pred_class), factor(test_dat$outcome))
 ```
 
-By using threshold testing for this model, we improved our balanced accuracy to 0.7250. We see very similar sensitivity and specificity values, meaning that our model is not skewed toward predicting one class over another.
+Threshold testing proved that we selected the correct threshold for our model, meaning that we have found the highest balanced accuracy possible.
 
-## Results
+## Additional Discussion & Conclusions
+  For our analysis, we looked at crime data in Los Angeles over a three-year span. We hoped to identify areas of high-crime within the city and then determine the factors that make these areas violent/high-crime. 
+  We began by creating 2 derived variables: vulnerability and severity. Vulnerability captured the victim's age and sex, and severity captured the number of crimes and accounted for the severity of each according to the crime code provided. Other important variables were the date/time of the crime (hour, month, year), if there was a weapon used, and if there was an arrest involved.
+  We began with PAM Clustering, which identified areas of high-crime based on the number of guns, number of blades, number of arrests, average severity, and average vulnerability. From our PAM Clustering model, we learned the clusters that the Los Angeles police department should prioritize in terms of number of officers and preparation.
 
-## Discussion
+  - The districts in cluster 10 are high-crime and violent. Officers in these districts should be prepared with equipment for armed crimes.
 
-## Conclusion 
+  - The districts in clusters 4 and 11 have more vulnerable victims and are high-crime as well. Officers in these districts should be prepared to treat more vulnerable victims.
 
-##Future Work
+  - The districts in cluster 1 are the safest for all people (vulnerable/non-vulnerable) to live and are the safest overall. Officers in these districts should be ready to move to and assist those in more high-crime areas.
 
+  We then moved into prediction. These models used the clusters idenfitied as high-crime (4, 10, and 11) for modeling. From our XGBoost models, we learned the most important factors that predict a violent crime and the time of the day that a crime will occur. For both models, we see that premis code is the dominant predictor. In terms of practical conclusions, the Los Angeles police department should be prepared to help those in the areas where Premis Code is highest on the partial dependence plot. 
+
+#### Future Work
 When considering future work for this project, we would like to expand our analysis to other major cities in the US. It would be interesting to see if other cities had similar patterns of violence and times of day and also if the same values have the same predictive power across the US.
 
 When considering implementation for this project, we would expand our findings by using different weightings to calculate our severity or vulnerability index. Our hope would be to do more research in victim fatality, which would guide us to better quantify the vulnerable population and even include vulnerability due to race. In addition, we did not use any time series models in our prediction, instead transforming our time variables with sin/cos or leaving them as factors. This meant that we were not investigating patterns over time. This would be an interesting analysis to help assess whether our project or any other initiatives in the city are successful, by seeing if crime is trending down.
