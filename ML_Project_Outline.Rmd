@@ -256,7 +256,7 @@ grid.arrange(arrest_map, armed_map1, nrow=1)
 
 From this map, we can see there are areas particularly towards the north and centre where there are a higher percentage of armed crimes and crimes that lead to arrests. This indicates that both armed and arrested may be good variables to help cluster our areas into high-low crime. 
 
-#### Creating derived variables
+#### Creating Derived Variables
 
 Vulnerability Metric
 ```{r Create Vulnerability Metric}
@@ -1041,9 +1041,9 @@ Threshold testing proved that we selected the correct threshold for our model, m
 
   - The districts in cluster 1 are the safest for all people (vulnerable/non-vulnerable) to live and are the safest overall. Officers in these districts should be ready to move to and assist those in more high-crime areas.
 
-  We then moved into prediction. These models used the clusters idenfitied as high-crime (4, 10, and 11) for modeling. From our XGBoost models, we learned the most important factors that predict a violent crime and the time of the day that a crime will occur. For both models, we see that premis code is the dominant predictor. In terms of practical conclusions, the Los Angeles police department should be prepared to help those in the areas where Premis Code is highest on the partial dependence plot. 
+  We then moved into prediction. These models used the clusters identified as high-crime (4, 10, and 11) for modeling. From our XGBoost models, we learned the most important factors that predict a violent crime and the time of the day that a crime will occur. For both models, we see that premis code is the dominant predictor. In terms of practical conclusions, the Los Angeles police department should be prepared to help those in the areas where Premis Code is highest on the partial dependence plot. 
 
-#### Future Work
+## Future Work
 When considering future work for this project, we would like to expand our analysis to other major cities in the US. It would be interesting to see if other cities had similar patterns of violence and times of day and also if the same values have the same predictive power across the US.
 
 When considering implementation for this project, we would expand our findings by using different weightings to calculate our severity or vulnerability index. Our hope would be to do more research in victim fatality, which would guide us to better quantify the vulnerable population and even include vulnerability due to race. In addition, we did not use any time series models in our prediction, instead transforming our time variables with sin/cos or leaving them as factors. This meant that we were not investigating patterns over time. This would be an interesting analysis to help assess whether our project or any other initiatives in the city are successful, by seeing if crime is trending down.
